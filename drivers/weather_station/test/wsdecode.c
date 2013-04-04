@@ -13,6 +13,7 @@ https://github.com/canboat/canboat.git
 
 /*
 *     - scrittura file multipli
+*			- inizializzare i file vuoti
 *			- fondere in u200.c
 */
 
@@ -34,15 +35,16 @@ void printPacket(size_t index, RawMessage * msg);
 bool printPgn(int index, int subIndex, RawMessage * msg);
 static void extractNumber(Field * field, uint8_t * data, size_t startBit, size_t bits, int64_t * value, int64_t * maxValue);
 static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t startBit, size_t bits);
+static bool printLatLon(char * name, double resolution, uint8_t * data, size_t bytes);
 
 int main(int argc, char ** argv)
 {
 	//char msg[] = "2013-03-30-15:09:38.449,3,127257,1,255,8,e7,ff,7f,a2,01,e4,fa,ff";	
 	char msg[2000];
+	char ckpgn[6];
 
 	FILE * file;
 	file = fopen("sample.log", "r");
-	//file = fopen("num2.log", "r");
       if (!file)
       {
         printf("Cannot open file ");
@@ -50,7 +52,14 @@ int main(int argc, char ** argv)
       }
 	while (fgets(msg, sizeof(msg) - 1, file))
   {
-			msgdec(msg);
+			strncpy(ckpgn, msg+26, 6);
+			
+			if( strcmp(ckpgn,"127250")!=0 
+					&& strcmp(ckpgn,"262386")!=0
+					&& strcmp(ckpgn,"130312")!=0 			
+					&& strcmp(ckpgn,"130313")!=0
+					&& strcmp(ckpgn,"130314")!=0 						
+			) msgdec(msg);
 	}
 
   return 0;
@@ -74,7 +83,7 @@ void msgdec(char * msg)
 
 
 	// START FROM "MSG" STRING		
-	fprintf(stdout, "\n%s", msg);
+	// fprintf(stdout, "\n%s", msg);
 	
 	// MKS: using RAWFORMAT_FAST by default
 	p = strchr(msg, ',');
@@ -208,10 +217,10 @@ bool printCanFormat(RawMessage * msg)
   {
     if (msg->pgn == pgnList[i].pgn)
     {
-      //if (!pgnList[i].size)
-      //{
-      //  return true; /* Determine size by raw packet first */
-      //}
+      if (!pgnList[i].size)
+      {
+        return true; /* Determine size by raw packet first */
+      }
 
       /* Found the pgn that matches this particular packet */
       printPacket(i, msg);
@@ -502,7 +511,7 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 /* HERE msg->pgn */
 //    mprintf("%s %u %3u %3u %6u %s:", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
 //    sep = " ";
-	fprintf(stdout,"DBG_01: PGN [%6u]\n", msg->pgn);
+	fprintf(stdout,"\n----- PGN [%6u] -----\n", msg->pgn);
 
 
  /* } */
@@ -576,20 +585,7 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 
 ascii_string:
 
-
-        /*if (showJson)
-        {
-          mprintf("%s\"%s\":\"", getSep(), fieldName);
-        }
-        else
-        {*/
-
-
-        //  mprintf("%s %s = ", getSep(), fieldName);
-				fprintf(stdout,"DBG_02: FIELD_NAME [%s]\n", fieldName);
-
-
-        /*}*/
+				fprintf(stdout,"DBG_02: [%s] DATA: [", fieldName);
 
         for (k = 0; k < len; k++)
         {
@@ -598,9 +594,10 @@ ascii_string:
             int c = data[k];
 
             // mprintf("%c", c);
-						fprintf(stdout,"DBG_03: DATA [%c]\n", c);
+						fprintf(stdout,"(%c)", c);
           }
         }
+				fprintf(stdout,"]\n");
 
  
 
@@ -632,35 +629,26 @@ ascii_string:
         }
         if (len)
         {
-          /*if (showJson)
-          {
-            mprintf("%s\"%s\":\"%.*s\"", getSep(), fieldName, (int) len, data);
-          }
-          else
-          {*/
-            //mprintf("%s %s = %.*s", getSep(), fieldName, (int) len, data);
-						// fprintf(stdout,"DBG_4: FIELD [%s], LEN [%s], DATA [%s]\n", fieldName, (int) len, data);
-						fprintf(stdout,"DBG_04: STRING: FIELD [%s], DATA [%s]\n", fieldName, data);
-         /* } */
+						fprintf(stdout,"** DBG_04: STRING: FIELD [%s], DATA [%s]\n", fieldName, data);
         }
         bits = BYTES(bytes);
       }
       else if (field.resolution == RES_LONGITUDE || field.resolution == RES_LATITUDE)
       {
-        //printLatLon(fieldName, field.resolution, data, bytes);
-				fprintf(stdout,"DBG_05: LAT-LON [...]\n");
+				fprintf(stdout,"DBG_05: LAT-LON -> ");
+        printLatLon(fieldName, field.resolution, data, bytes);
       }
       else if (field.resolution == RES_DATE)
       {
         memcpy((void *) &valueu16, data, 2);
-				fprintf(stdout,"DBG_06: DATE [...] (ignored)\n");
+				fprintf(stdout,"DBG_06: DATE -> (ignored)\n");
         //printDate(fieldName, valueu16);
         //currentDate = valueu16;
       }
       else if (field.resolution == RES_TIME)
       {
         memcpy((void *) &valueu32, data, 4);
-				fprintf(stdout,"DBG_07: TIME [...] (ignored)\n");
+				fprintf(stdout,"DBG_07: TIME -> (ignored)\n");
         //printTime(fieldName, valueu32);
         //currentTime = valueu32;
       }
@@ -679,7 +667,7 @@ ascii_string:
       else if (field.resolution == RES_6BITASCII)
       {
         //print6BitASCIIText(fieldName, data, startBit, bits);
-				fprintf(stdout,"DBG_10: ASCII TEXT [...]\n");
+				fprintf(stdout,"**DBG_10: ASCII TEXT [...]\n");
       }
       else if (bits == LEN_VARIABLE)
       {
@@ -820,7 +808,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 
   extractNumber(field, data, startBit, bits, &value, &maxValue);
 
-  if (maxValue >= 15)
+	if (maxValue >= 15)
   {
     notUsed = 2;
   }
@@ -833,7 +821,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
     notUsed = 0;
   }
 
-  if (value <= maxValue - notUsed)
+	if (value <= maxValue - notUsed)
   {
     if (field->units && field->units[0] == '=')
     {
@@ -843,6 +831,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
       sprintf(lookfor, "=%"PRId64, value);
       if (strcmp(lookfor, field->units) != 0)
       {
+				 fprintf(stdout,"RETURN FALSE ***\n");
          return false;
       }
       s = field->description;
@@ -870,7 +859,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
         e = e ? e : s + strlen(s);
         
         // mprintf("%s %s = %.*s", getSep(), fieldName, (int) (e - s), s);
-				fprintf(stdout,"B) FIELD [%s], DATA [ %.*s]\n", fieldName,  (int) (e - s), s);
+				fprintf(stdout,"B) [%s] : %.*s\n", fieldName,  (int) (e - s), s);
         
       }
       else
@@ -881,7 +870,6 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
        
       }
     }
-
     else if (field->resolution == RES_BINARY)
     {
       
@@ -889,32 +877,11 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 			fprintf(stdout,"D) FIELD [%s], DATA [%"PRIx64"]\n", fieldName, value);
       
     }
-
-	
     else if (field->resolution == RES_MANUFACTURER)
     {
-		/*
 			// I DONT'T CARE ABOUT MANUFACTURER
-
-      char * m = 0;
-      char unknownManufacturer[30];
-
-      if (value > 0 && value < ARRAY_SIZE(manufacturer))
-      {
-        m = manufacturer[value];
-      }
-      if (!m)
-      {
-        sprintf(unknownManufacturer, "Unknown Manufacturer %"PRId64, value);
-        m = unknownManufacturer;
-      }
-
-      //  mprintf("%s %s = %s", getSep(), fieldName, m);
-			
-      */
 			fprintf(stdout,"MANUFACTURER ...\n");
     }
-
     else
     {
 
@@ -956,49 +923,107 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
         else
         {
           //mprintf("%s %s = %.*f", getSep(), fieldName, precision, a);
-					fprintf(stdout,"G1) FIELD [%s], DATA = [%.*f] ", fieldName, precision, a);
+					fprintf(stdout,"G) [%s] : %.*f ", fieldName, precision, a);
           if (field->units)
           {
             //mprintf(" %s", field->units);
-						fprintf(stdout,"unit: [%s]\n", field->units);
+						fprintf(stdout,"(%s)\n", field->units);
           }
 					else
 					{
-							fprintf(stdout,"\n");
+						
+						fprintf(stdout,"\n");
 					}
         }
       }
     }
   }
+	else
+	{
+			fprintf(stdout,"   ???? \n");
+	}
 
   return true;
 }
 
 
+
 /*
-static void fillManufacturers(void)
-{
-  size_t i;
+ * There are three ways to print lat/long: DD, DM, DMS.
+ * We print in the way set by the config. Default is DMS. DD is useful for Google Maps.
+ */
 
-  for (i = 0; i < ARRAY_SIZE(companyList); i++)
+static bool printLatLon(char * name, double resolution, uint8_t * data, size_t bytes)
+{
+  uint64_t absVal;
+  int64_t value;
+
+  value = 0;
+  memcpy(&value, data, bytes);
+  if (bytes == 4 && ((data[3] & 0x80) > 0))
   {
-    manufacturer[companyList[i].id] = companyList[i].name;
+    value |= UINT64_C(0xffffffff00000000);
   }
-}
-
-static void fillFieldCounts(void)
-{
-  size_t i, j;
-
-  for (i = 0; i < ARRAY_SIZE(pgnList); i++)
+  if (value > ((bytes == 8) ? INT64_C(0x7ffffffffffffffd) : INT64_C(0x7ffffffd)))
   {
-    for (j = 0; pgnList[i].fieldList[j].name && j < 80; j++);
-    if (j == 80)
+		fprintf(stdout," RETURN FALSE **********\n");
+    return false;
+  }
+
+  if (bytes == 8)
+  {
+    value /= INT64_C(1000000000);
+  }
+  absVal = (value < 0) ? -value : value;
+
+ /*
+  if (showGeo == GEO_DD)
+  {
+    double dd = (double) value / (double) RES_LAT_LONG_PRECISION;
+
+    if (showJson)
     {
-      fprintf(stdout,"Internal PGN %d does not have correct fieldlist.\n", pgnList[i].pgn);
-      exit(2);
+      mprintf("%s\"%s\":\"%010.7f\"", getSep(), name, dd);
     }
-    pgnList[i].fieldCount = j;
+    else
+    {
+      mprintf("%s %s = %010.7f", getSep(), name, dd);
+    }
   }
-}
+  else if (showGeo == GEO_DM)
+  {
+    // One degree = 10e6 
+
+    uint64_t degrees = (absVal / RES_LAT_LONG_PRECISION);
+    uint64_t remainder = (absVal % RES_LAT_LONG_PRECISION);
+    double minutes = (remainder * 60) / (double) RES_LAT_LONG_PRECISION;
+
+    mprintf((showJson ? "%s\"%s\":\"%02u&deg; %06.3f %c\"" : "%s %s = %02ud %06.3f %c")
+           , getSep(), name, (uint32_t) degrees, minutes
+           , ((resolution == RES_LONGITUDE)
+              ? ((value >= 0) ? 'E' : 'W')
+              : ((value >= 0) ? 'N' : 'S')
+             )
+           );
+  }
+  else
+  {
 */
+    uint32_t degrees = (uint32_t) (absVal / RES_LAT_LONG_PRECISION);
+    uint32_t remainder = (uint32_t) (absVal % RES_LAT_LONG_PRECISION);
+    uint32_t minutes = (remainder * 60) / RES_LAT_LONG_PRECISION;
+    double seconds = (((uint64_t) remainder * 3600) / (double) RES_LAT_LONG_PRECISION) - (60 * minutes);
+
+    fprintf(stdout, "[%s] : %02ud %02u' %06.3f\"%c \n"
+           , name, degrees, minutes, seconds
+           , ((resolution == RES_LONGITUDE)
+              ? ((value >= 0) ? 'E' : 'W')
+              : ((value >= 0) ? 'N' : 'S')
+             )
+           );
+
+		
+
+ /* } */
+  return true;
+}

@@ -24,6 +24,10 @@ weather station AIRMAR WS-200WX.
 #define RadianToDegree (360.0 / 2 / Pi)
 #define BYTES(x) ((x)*(8))
 
+#define RES_LAT_LONG_PRECISION (10000000) /* 1e7 */
+#define RES_LAT_LONG (1.0e-7)
+#define RES_LAT_LONG_64 (1.0e-16)
+
 #define LOOKUP_INDUSTRY_CODE ( \
 						",4=Marine"\
 						)
