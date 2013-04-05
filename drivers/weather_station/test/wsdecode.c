@@ -12,9 +12,9 @@ https://github.com/canboat/canboat.git
 
 
 /*
-*     - scrittura file multipli
-*			- inizializzare i file vuoti
+*			- code cleanup
 *			- fondere in u200.c
+*			- file write timeout?
 */
 
 #include "../u200.h"
@@ -25,8 +25,16 @@ char * manufacturer[1 << 12];
 size_t heapSize = 0;
 int clockSrc = -1;
 
-//static void fillManufacturers(void);
-//static void fillFieldCounts(void);
+int i;
+int pos=0;
+int currentPgn=0;
+char tmpchar[50];
+ListItem currentList[20];
+void initFiles();
+void addtolist();
+void writeondisk();
+
+
 void msgdec(char * msg);
 static int scanHex(char ** p, uint8_t * m);
 static uint8_t scanNibble(char c);
@@ -43,6 +51,8 @@ int main(int argc, char ** argv)
 	char msg[2000];
 	char ckpgn[6];
 
+	initFiles();
+
 	FILE * file;
 	file = fopen("sample.log", "r");
       if (!file)
@@ -54,8 +64,7 @@ int main(int argc, char ** argv)
   {
 			strncpy(ckpgn, msg+26, 6);
 			
-			if( strcmp(ckpgn,"127250")!=0 
-					&& strcmp(ckpgn,"262386")!=0
+			if(    strcmp(ckpgn,"262386")!=0
 					&& strcmp(ckpgn,"130312")!=0 			
 					&& strcmp(ckpgn,"130313")!=0
 					&& strcmp(ckpgn,"130314")!=0 						
@@ -77,10 +86,6 @@ void msgdec(char * msg)
 	unsigned int i;
 	char * p;
 	
-
-	//fillManufacturers();
-	//fillFieldCounts();
-
 
 	// START FROM "MSG" STRING		
 	// fprintf(stdout, "\n%s", msg);
@@ -154,7 +159,10 @@ void msgdec(char * msg)
   m.src  = src;
   m.len  = len;
 
+	
+	currentPgn=pgn; pos=0;
 	printCanFormat(&m);
+	writeondisk();
 
 }
 
@@ -473,49 +481,16 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
   }
 
   pgn = &pgnList[index];
-/*
-  if (showData)
-  {
-    FILE * f = stdout;
-    char c = ' ';
 
-    if (showJson)
-    {
-      f = stderr;
-    }
 
-    fprintf(f, "%s %u %3u %3u %6u %s: ", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
-    for (i = 0; i < size; i++)
-    {
-      fprintf(f, " %2.02X", dataStart[i]);
-    }
-    putc('\n', f);
-
-    fprintf(f, "%s %u %3u %3u %6u %s: ", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
-    for (i = 0; i < size; i++)
-    {
-      fprintf(f, "  %c", isalnum(dataStart[i]) ? dataStart[i] : '.');
-    }
-    putc('\n', f);
-  }
-*/
-/*
-  if (showJson)
-  {
-    mprintf("{\"timestamp\":\"%s\",\"prio\":\"%u\",\"src\":\"%u\",\"dst\":\"%u\",\"pgn\":\"%u\",\"description\":\"%s\"", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
-    sep = ",\"fields\":{";
-  }
-  else
-  {*/
 
 /* HERE msg->pgn */
 //    mprintf("%s %u %3u %3u %6u %s:", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
 //    sep = " ";
-	fprintf(stdout,"\n----- PGN [%6u] -----\n", msg->pgn);
+	fprintf(stdout,"\n----- PGN [%6u] ----------------------\n", msg->pgn);
 
 
- /* } */
-
+	// scanna i bytes del messaggio e decodifica tutti i campi per il pgn in questione
   for (i = 0, startBit = 0, data = dataStart; data < dataEnd; i++)
   {
 
@@ -655,13 +630,13 @@ ascii_string:
       else if (field.resolution == RES_TEMPERATURE)
       {
         memcpy((void *) &valueu16, data, 2);
-				fprintf(stdout,"DBG_08: TEMPERATURE [...]\n");
+				fprintf(stdout,"DBG_08: TEMPERATURE: (ignored)\n");
         //printTemperature(fieldName, valueu16);
       }
       else if (field.resolution == RES_PRESSURE)
       {
         memcpy((void *) &valueu16, data, 2);
-				fprintf(stdout,"DBG_09: PRESSURE [...]\n");
+				fprintf(stdout,"DBG_09: PRESSURE: (ignored)\n");
         //printPressure(fieldName, valueu16);
       }
       else if (field.resolution == RES_6BITASCII)
@@ -858,8 +833,11 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
         e = strchr(s, ',');
         e = e ? e : s + strlen(s);
         
-        // mprintf("%s %s = %.*s", getSep(), fieldName, (int) (e - s), s);
+        
 				fprintf(stdout,"B) [%s] : %.*s\n", fieldName,  (int) (e - s), s);
+				
+				sprintf(tmpchar,"%.*s", (int) (e - s), s);
+				addtolist(fieldName, tmpchar);
         
       }
       else
@@ -924,6 +902,10 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
         {
           //mprintf("%s %s = %.*f", getSep(), fieldName, precision, a);
 					fprintf(stdout,"G) [%s] : %.*f ", fieldName, precision, a);
+				
+					sprintf(tmpchar,"%.*f", precision, a);
+					addtolist(fieldName, tmpchar);
+
           if (field->units)
           {
             //mprintf(" %s", field->units);
@@ -940,7 +922,11 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
   }
 	else
 	{
-			fprintf(stdout,"   ???? \n");
+			fprintf(stdout,"   [%s]: ???? \n",fieldName);
+
+			sprintf(tmpchar,"?");
+			addtolist(fieldName,tmpchar);
+
 	}
 
   return true;
@@ -966,7 +952,9 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
   }
   if (value > ((bytes == 8) ? INT64_C(0x7ffffffffffffffd) : INT64_C(0x7ffffffd)))
   {
-		fprintf(stdout," RETURN FALSE **********\n");
+		fprintf(stdout," [%s]: ???? **********\n",name);
+		sprintf(tmpchar,"?");
+		addtolist(name, tmpchar);
     return false;
   }
 
@@ -976,54 +964,148 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
   }
   absVal = (value < 0) ? -value : value;
 
- /*
-  if (showGeo == GEO_DD)
-  {
-    double dd = (double) value / (double) RES_LAT_LONG_PRECISION;
 
-    if (showJson)
-    {
-      mprintf("%s\"%s\":\"%010.7f\"", getSep(), name, dd);
-    }
-    else
-    {
-      mprintf("%s %s = %010.7f", getSep(), name, dd);
-    }
-  }
-  else if (showGeo == GEO_DM)
-  {
-    // One degree = 10e6 
+	// DD
+		double dd = (double) value / (double) RES_LAT_LONG_PRECISION;
+		//mprintf("%s %s = %010.7f", getSep(), name, dd);
+		fprintf(stdout,"%s = %010.7f \n",name, dd);
+		sprintf(tmpchar,"%010.7f", dd);
+		addtolist(name, tmpchar);
+   
 
-    uint64_t degrees = (absVal / RES_LAT_LONG_PRECISION);
-    uint64_t remainder = (absVal % RES_LAT_LONG_PRECISION);
-    double minutes = (remainder * 60) / (double) RES_LAT_LONG_PRECISION;
+/*
+  // DM  //One degree = 10e6 
+		uint64_t degrees = (absVal / RES_LAT_LONG_PRECISION);
+		uint64_t remainder = (absVal % RES_LAT_LONG_PRECISION);
+		double minutes = (remainder * 60) / (double) RES_LAT_LONG_PRECISION;
 
-    mprintf((showJson ? "%s\"%s\":\"%02u&deg; %06.3f %c\"" : "%s %s = %02ud %06.3f %c")
-           , getSep(), name, (uint32_t) degrees, minutes
-           , ((resolution == RES_LONGITUDE)
-              ? ((value >= 0) ? 'E' : 'W')
-              : ((value >= 0) ? 'N' : 'S')
-             )
-           );
-  }
-  else
-  {
+		mprintf((showJson ? "%s\"%s\":\"%02u&deg; %06.3f %c\"" : "%s %s = %02ud %06.3f %c")
+		       , getSep(), name, (uint32_t) degrees, minutes
+		       , ((resolution == RES_LONGITUDE)
+		          ? ((value >= 0) ? 'E' : 'W')
+		          : ((value >= 0) ? 'N' : 'S')
+		         )
+		       );
 */
-    uint32_t degrees = (uint32_t) (absVal / RES_LAT_LONG_PRECISION);
-    uint32_t remainder = (uint32_t) (absVal % RES_LAT_LONG_PRECISION);
-    uint32_t minutes = (remainder * 60) / RES_LAT_LONG_PRECISION;
-    double seconds = (((uint64_t) remainder * 3600) / (double) RES_LAT_LONG_PRECISION) - (60 * minutes);
+/*
+	// DMS
+		uint32_t degrees = (uint32_t) (absVal / RES_LAT_LONG_PRECISION);
+		uint32_t remainder = (uint32_t) (absVal % RES_LAT_LONG_PRECISION);
+		uint32_t minutes = (remainder * 60) / RES_LAT_LONG_PRECISION;
+		double seconds = (((uint64_t) remainder * 3600) / (double) RES_LAT_LONG_PRECISION) - (60 * minutes);
 
-    fprintf(stdout, "[%s] : %02ud %02u' %06.3f\"%c \n"
-           , name, degrees, minutes, seconds
-           , ((resolution == RES_LONGITUDE)
-              ? ((value >= 0) ? 'E' : 'W')
-              : ((value >= 0) ? 'N' : 'S')
-             )
-           );
-
+		fprintf(stdout, "[%s] : %02ud %02u' %06.3f\"%c \n"
+		       , name, degrees, minutes, seconds
+		       , ((resolution == RES_LONGITUDE)
+		          ? ((value >= 0) ? 'E' : 'W')
+		          : ((value >= 0) ? 'N' : 'S')
+		         )
+		       );
+*/
 		
-
- /* } */
   return true;
 }
+
+
+
+/*
+ *	Add a new [NAME-VALUE] entry to the list of the current PGN
+ */
+void addtolist(char name[], char value[]) {
+		
+	//convert spaces into underscores
+	char *p;
+  while (1)  {
+      p = strchr(name, ' ');
+      if (p == NULL)  { break; }
+      *p = '_';
+  }
+
+	// add the new entry and incremente the place holder 'pos'
+	ListItem m;
+	strcpy(m.name, name);
+	strcpy(m.value, value);
+	currentList[pos]=m;
+	pos++;
+
+}
+
+void initFiles(){
+	//system("mkdir /tmp/{127251,127250,127257,129025,129026,130306}");
+	system("mkdir /tmp/u200");
+
+	system("touch /tmp/u200/Rate");
+	system("touch /tmp/u200/Heading");
+	system("touch /tmp/u200/Deviation");
+	system("touch /tmp/u200/Variation");
+	system("touch /tmp/u200/Yaw");
+	system("touch /tmp/u200/Pitch");
+	system("touch /tmp/u200/Roll");
+	system("touch /tmp/u200/Latitude");
+	system("touch /tmp/u200/Longitude");
+	system("touch /tmp/u200/COG");
+	system("touch /tmp/u200/SOG");
+	system("touch /tmp/u200/Wind_Speed");
+	system("touch /tmp/u200/Wind_Angle");
+	
+}
+
+
+/*
+ *	Write each notnull [NAME-VALUE] entry of the current PGN to the relevant file
+ */
+void writeondisk(){
+		FILE *file; 
+		
+		fprintf(stdout,"\n");
+	
+		// For each Field decoded from the message, if not null, write the value in the relative file
+		for(i=0;i<pos;i++) {
+
+			if (
+						// Rate of Turn 
+						( currentPgn == 127251 && strcmp(currentList[i].name,"Rate")==0	)
+
+						// Vessel Heading
+				||  ( currentPgn == 127250 && strcmp(currentList[i].name,"Heading")==0	)
+				||  ( currentPgn == 127250 && strcmp(currentList[i].name,"Deviation")==0	)
+				||  ( currentPgn == 127250 && strcmp(currentList[i].name,"Variation")==0	)
+
+						// Attitude
+				||  ( currentPgn == 127257 && strcmp(currentList[i].name,"Yaw")==0	)
+				||  ( currentPgn == 127257 && strcmp(currentList[i].name,"Pitch")==0	)
+				||  ( currentPgn == 127257 && strcmp(currentList[i].name,"Roll")==0	)
+
+						// Position, Rapid Update
+				||  ( currentPgn == 129025 && strcmp(currentList[i].name,"Latitude")==0	)
+				||  ( currentPgn == 129025 && strcmp(currentList[i].name,"Longitude")==0	)	
+
+						// COG and SOG, Rapid Update
+				||  ( currentPgn == 129026 && strcmp(currentList[i].name,"COG")==0	)
+				||  ( currentPgn == 129026 && strcmp(currentList[i].name,"SOG")==0	)			
+		
+						// Wind Data
+				||	( currentPgn == 130306 && strcmp(currentList[i].name,"Wind_Speed")==0	&& strcmp(currentList[3].value,"True (ground referenced to North)")==0 )	
+				||	( currentPgn == 130306 && strcmp(currentList[i].name,"Wind_Angle")==0	&& strcmp(currentList[3].value,"True (ground referenced to North)")==0 )		
+				){
+				
+				if (strcmp(currentList[i].value,"?")!=0) 
+				{
+					sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
+					fprintf(stdout,"  %s -> (%s)\n",tmpchar, currentList[i].value);
+
+					// write to file		
+					file = fopen(tmpchar,"w");
+					fprintf(file,"%s",currentList[i].value);
+					fclose(file);
+					
+				}
+
+			}
+
+		}
+		fprintf(stdout,"\n");
+
+}
+
+

@@ -24,6 +24,7 @@
 #include "pgn_list.h"
 
 
+
 /* Actisense NGT-1 message structure is:
 
    DLE STX <command> <len> [<data> ...]  <checksum> DLE ETX
@@ -84,4 +85,10 @@ typedef struct
 {
   Packet packetList[ARRAY_SIZE(pgnList)];
 } DevicePackets;
+
+typedef struct
+{
+  char name[50];
+  char value[50];
+} ListItem;
 
