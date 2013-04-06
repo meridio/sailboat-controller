@@ -12,8 +12,6 @@ https://github.com/canboat/canboat.git
 
 
 /*
-*	- indent, align code
-*	- git push
 *	- code cleanup (remove all commented statements
 *	- fondere in u200.c
 *	- cleanup u200.c
