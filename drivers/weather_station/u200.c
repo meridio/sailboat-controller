@@ -227,7 +227,6 @@ static int readNGT1(int handle)
 {
 	size_t i;
 	ssize_t r;
-	//bool printed = 0;
 	unsigned char c;
 	unsigned char buf[500];
 
@@ -237,19 +236,6 @@ static int readNGT1(int handle)
 	{
 		fprintf(stderr,"Unable to read from NGT1 device\n");
 	}
-
-	/* fprintf(stderr,"Read %d bytes from device\n", (int) r);*/
-	/*  // if (debug) 
-	if (0)
-	{
-		fprintf(stderr, "DEBUG read: ");
-		for (i = 0; i < r; i++)
-		{
-			c = buf[i];
-			fprintf(stderr, " %02X", c);
-		}
-		fprintf(stderr, "\n");
-	}*/
 
 	for (i = 0; i < r; i++)
 	{
@@ -267,7 +253,6 @@ static int readNGT1(int handle)
 static void readNGT1Byte(unsigned char c)
 {
 	static enum MSG_State state = MSG_START;
-	//static bool startEscape = false;
 	static bool noEscape = false;
 	static unsigned char buf[500];
 	static unsigned char * head = buf;
@@ -299,7 +284,6 @@ static void readNGT1Byte(unsigned char c)
 		}
 		else
 		{
-			/*logError("DLE followed by unexpected char %02X, ignore message\n", c);*/
 			fprintf(stderr,"DLE followed by unexpected char %02X, ignore message\n", c);
 			state = MSG_START;
 		}
@@ -324,7 +308,6 @@ static void messageReceived(const unsigned char * msg, size_t msgLen)
 {
 	unsigned char command;
 	unsigned char checksum = 0;
-	//unsigned char * payload;
 	unsigned char payloadLen;
 	size_t i;
 
@@ -399,7 +382,6 @@ static void n2kMessageReceived(const unsigned char * msg, size_t msgLen)
 	size_t i;
 	unsigned int len;
 	char line[800];
-	//char ckpgn[6];
 	char * p;
 
 	if (msgLen < 11)
@@ -433,8 +415,6 @@ static void n2kMessageReceived(const unsigned char * msg, size_t msgLen)
 	}
 
 	/* Send the line with exadecimal values to the decoder */
-	//puts(line);
-	//strncpy(ckpgn, line+26, 6);
 	if(	pgn!=262386 && pgn!=130312 && pgn!=130313 && pgn!=130314)
 	{
 		msgdec(line);
@@ -475,18 +455,12 @@ static char * now(void)
 void msgdec(char * msg) 
 {
 	int r;
-
 	RawMessage m;
-	//unsigned int prio, pgn, dst, src, len, junk;
 	unsigned int prio, pgn, dst, src, len;
 	unsigned int i;
 	char * p;
 	
-
-	// START FROM "MSG" STRING		
-	// fprintf(stdout, "\n%s", msg);
-	
-	// MKS: using RAWFORMAT_FAST by default
+	// hmmm.. using RAWFORMAT_FAST by default
 	p = strchr(msg, ',');
 	
 	memcpy(m.timestamp, msg, p - msg);
@@ -598,8 +572,6 @@ bool printCanFormat(RawMessage * msg)
 
 void printPacket(size_t index, RawMessage * msg)
 {
-	// size_t fastPacketIndex;  //unsued
-	// size_t bucket;			//unused
 	Packet * packet;
 	Pgn * pgn = &pgnList[index];
 	size_t subIndex;
@@ -633,83 +605,32 @@ void printPacket(size_t index, RawMessage * msg)
 	/* assuming RAWFORMAT_FAST: */
 	/*	if (msg->len > 0x8 || format != RAWFORMAT_PLAIN) 
 	{ */
-	if (packet->allocSize < msg->len)
-	{
-		heapSize += msg->len - packet->allocSize;
-		packet->data = realloc(packet->data, msg->len);
-		packet->data = realloc(packet->data, msg->len);
-		if (!packet->data)
+		if (packet->allocSize < msg->len)
 		{
-			fprintf(stdout, "Out of memory\n");
-			exit(1);
+			heapSize += msg->len - packet->allocSize;
+			packet->data = realloc(packet->data, msg->len);
+			packet->data = realloc(packet->data, msg->len);
+			if (!packet->data)
+			{
+				fprintf(stdout, "Out of memory\n");
+				exit(1);
+			}
+			packet->allocSize = msg->len;
 		}
-		packet->allocSize = msg->len;
+		memcpy( packet->data
+				, msg->data
+				, msg->len
+		);
+		packet->size = msg->len;
+/* 	} 
+	else if (pgn->size > 0x8)
+	{
+		...   
 	}
-	memcpy( packet->data
-			, msg->data
-			, msg->len
-	);
-	packet->size = msg->len;
-	/* }  */
-
-/* still assuming RAWFORMAT_FAST:  */
-
-/* else if (pgn->size > 0x8)
-  {
-    fastPacketIndex = msg->data[FASTPACKET_INDEX];
-    bucket = fastPacketIndex & FASTPACKET_MAX_INDEX;
-
-    if (bucket == 0)
-    {
-      size_t newSize = msg->data[FASTPACKET_SIZE] + FASTPACKET_BUCKET_N_SIZE;
-
-      if (packet->allocSize < newSize)
-      {
-        heapSize += newSize - packet->allocSize;
-        logDebug("Resizing buffer for PGN %u device %u to accomodate %zu bytes (heap %zu bytes)\n", pgn->pgn, msg->src, newSize, heapSize);
-        packet->data = realloc(packet->data, newSize);
-        if (!packet->data)
-        {
-          die("Out of memory\n");
-        }
-        packet->allocSize = newSize;
-      }
-      packet->size = msg->data[FASTPACKET_SIZE];
-      memcpy( packet->data
-            , msg->data + FASTPACKET_BUCKET_0_OFFSET
-            , FASTPACKET_BUCKET_0_SIZE
-            );
-    }
-    else
-    {
-      if (packet->lastFastPacket + 1 != fastPacketIndex)
-      {
-        logError("PGN %u malformed packet for %u received; expected %zu but got %zu\n"
-                , pgn->pgn, msg->src, packet->lastFastPacket + 1, fastPacketIndex
-                );
-        return;
-      }
-      memcpy( packet->data + FASTPACKET_BUCKET_0_SIZE + FASTPACKET_BUCKET_N_SIZE * (bucket - 1)
-            , msg->data + FASTPACKET_BUCKET_N_OFFSET
-            , FASTPACKET_BUCKET_N_SIZE
-            );
-    }
-    packet->lastFastPacket = fastPacketIndex;
-
-    if (FASTPACKET_BUCKET_0_SIZE + FASTPACKET_BUCKET_N_SIZE * bucket < packet->size)
-    {
-      // Packet is not complete yet 
-      return;
-    }
-  }
-  else // msg->len <= 8 && pgn->size <= 0x8 
-  {
-    packet->size = msg->len;
-    memcpy( packet->data
-          , msg->data
-          , msg->len
-          );
-  }
+	else // msg->len <= 8 && pgn->size <= 0x8 
+	{
+		...
+	}
 */
 
 	subIndex = index;
@@ -721,8 +642,8 @@ void printPacket(size_t index, RawMessage * msg)
 			{
 				// logDebug("PGN %d matches version %zu\n", msg->pgn, subIndex - index);//
 			}
-		// mwrite(stdout);
-		break;
+			// mwrite(stdout);
+			break;
 		}
 		else
 		{
@@ -755,7 +676,6 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 	char fieldName[60];
 	bool r;
 	bool matchedFixedField;
-	//bool hasFixedField;
 	uint32_t refPgn = 0;
 
 	if (!device[msg->src])	{ return false; }
@@ -768,7 +688,6 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 	for (;(index < ARRAY_SIZE(pgnList)) && (msg->pgn == pgnList[index].pgn); index++)
 	{
 		matchedFixedField = true;
-		//hasFixedField = false;
 
 		// There is a next index that we can use as well. We do so if the 'fixed' fields don't match 
 
@@ -786,7 +705,6 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 				int64_t value, desiredValue;
 				int64_t maxValue;
 
-				//hasFixedField = true;
 				extractNumber(&field, data, startBit, field.size, &value, &maxValue);
 				desiredValue = strtol(field.units + 1, 0, 10);
 				if (value != desiredValue)
@@ -806,11 +724,8 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 
 	pgn = &pgnList[index];
 
-
 	//    mprintf("%s %u %3u %3u %6u %s:", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
-	//    sep = " ";
 	fprintf(stdout,"\n----- PGN [%6u] -- %s -----------\n", msg->pgn, pgn->description);
-
 
 	// parse all the bytes of the message body and translate them into numeric values
 	for (i = 0, startBit = 0, data = dataStart; data < dataEnd; i++)
@@ -882,7 +797,6 @@ ascii_string:
 					if (data[k] >= ' ' && data[k] <= '~')
 					{
 						int c = data[k];
-						// mprintf("%c", c);
 						fprintf(stdout,"(%c)", c);
 					}
 				}
@@ -970,7 +884,6 @@ ascii_string:
 			}
 			else
 			{
-				//logError("Unknown resolution %f for %s\n", field.resolution, fieldName);
 				fprintf(stdout,"Unknown resolution %f for %s\n", field.resolution, fieldName);
 			}
 
@@ -1068,7 +981,6 @@ static void extractNumber(Field * field, uint8_t * data, size_t startBit, size_t
 
 static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t startBit, size_t bits)
 {
-	//bool ret = false;
 	int64_t value;
 	int64_t maxValue;
 	int64_t notUsed;
@@ -1096,7 +1008,6 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 			s = field->description;
 			if (!s) { s = lookfor + 1; }
 
-			// mprintf("%s %s = %s", getSep(), fieldName, s);
 			fprintf(stdout,"A) FIELD [%s], DATA [%s]\n", fieldName, data);
 		}
 		else
@@ -1120,13 +1031,11 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 			}
 			else
 			{
-				// mprintf("%s %s = %"PRId64"", getSep(), fieldName, value);
 				fprintf(stdout,"C) FIELD [%s], DATA [%"PRId64"]\n", fieldName, value);
 			}
 		}
 		else if (field->resolution == RES_BINARY)
 		{
-			//  mprintf("%s %s = 0x%"PRIx64, getSep(), fieldName, value);
 			fprintf(stdout,"D) FIELD [%s], DATA [%"PRIx64"]\n", fieldName, value);
 		}
 		else if (field->resolution == RES_MANUFACTURER)
@@ -1139,7 +1048,6 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 
 			if (field->resolution == RES_INTEGER)
 			{
-				//  mprintf("%s %s = %"PRId64, getSep(), fieldName, value);
 				fprintf(stdout,"E) FIELD [%s], DATA = [%"PRId64"]", fieldName, data);
 			}
 			else
@@ -1158,12 +1066,10 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 
 				if (field->units && strcmp(field->units, "m") == 0 && a >= 1000.0)
 				{
-					//mprintf("%s %s = %.*f km", getSep(), fieldName, precision + 3, a / 1000);
 					fprintf(stdout,"F) FIELD [%s], DATA = [%.*f]Km \n", fieldName, precision + 3, a / 1000);
 				}
 				else
 				{
-					//mprintf("%s %s = %.*f", getSep(), fieldName, precision, a);
 					fprintf(stdout,"G) [%s] : %.*f ", fieldName, precision, a);
 
 					sprintf(tmpchar,"%.*f", precision, a);
@@ -1171,7 +1077,6 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 
 					if (field->units)
 					{
-						//mprintf(" %s", field->units);
 						fprintf(stdout,"(%s)\n", field->units);
 					}
 					else
@@ -1199,7 +1104,6 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
  * There are three ways to print lat/long: DD, DM, DMS.
  * We print in the way set by the config. Default is DMS. DD is useful for Google Maps.
  */
-
 static bool printLatLon(char * name, double resolution, uint8_t * data, size_t bytes)
 {
 	uint64_t absVal;
@@ -1228,7 +1132,6 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 
 	// DD
 		double dd = (double) value / (double) RES_LAT_LONG_PRECISION;
-		//mprintf("%s %s = %010.7f", getSep(), name, dd);
 		fprintf(stdout,"%s = %010.7f \n",name, dd);
 		sprintf(tmpchar,"%010.7f", dd);
 		addtolist(name, tmpchar);
