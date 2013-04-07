@@ -12,9 +12,8 @@ https://github.com/canboat/canboat.git
 
 
 /*
-*	- code cleanup (remove all commented statements
 *	- fondere in u200.c
-*	- cleanup u200.c
+*	- code cleanup (remove all commented statements, per la parte decode almeno)
 *	- github push
 *	- file write timeout?
 */
@@ -22,14 +21,13 @@ https://github.com/canboat/canboat.git
 #include "../u200.h"
 
 DevicePackets * device[256];
-char * manufacturer[1 << 12];
+//char * manufacturer[1 << 12];
 
 size_t heapSize = 0;
 int clockSrc = -1;
 
-int i;
-int pos=0;
-int currentPgn=0;
+
+int i, pos=0, currentPgn=0;
 char tmpchar[50];
 ListItem currentList[20];
 void initFiles();
