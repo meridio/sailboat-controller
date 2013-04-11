@@ -30,7 +30,7 @@ int clockSrc = -1;
 int i, pos=0, currentPgn=0;
 char tmpchar[50];
 ListItem currentList[20];
-void initFiles();
+//void initFiles();
 void addtolist();
 void writeondisk();
 
@@ -51,7 +51,7 @@ int main(int argc, char ** argv)
 	char msg[2000];
 	char ckpgn[6];
 
-	initFiles();
+	//initFiles();
 
 	FILE * file;
 	file = fopen("sample.log", "r");
@@ -790,8 +790,9 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 	{
 		// undefined value
 		fprintf(stdout,"   [%s]: ???? \n",fieldName);
-		sprintf(tmpchar,"?");
-		addtolist(fieldName,tmpchar);
+		//sprintf(tmpchar,"?");
+		//addtolist(fieldName,tmpchar);
+		addtolist(fieldName,"");
 	}
 
 	return true;
@@ -818,8 +819,9 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 	if (value > ((bytes == 8) ? INT64_C(0x7ffffffffffffffd) : INT64_C(0x7ffffffd)))
 	{
 		fprintf(stdout," [%s]: ???? **********\n",name);
-		sprintf(tmpchar,"?");
-		addtolist(name, tmpchar);
+		//sprintf(tmpchar,"?");
+		//addtolist(name, tmpchar);
+		addtolist(name, "");
 		return false;
 	}
 
@@ -894,7 +896,7 @@ void addtolist(char name[], char value[])
 	currentList[pos]=m;
 	pos++;
 }
-
+/*
 void initFiles(){
 	//system("mkdir /tmp/{127251,127250,127257,129025,129026,130306}");
 	system("mkdir /tmp/u200");
@@ -906,14 +908,14 @@ void initFiles(){
 	system("touch /tmp/u200/Yaw");
 	system("touch /tmp/u200/Pitch");
 	system("touch /tmp/u200/Roll");
-	system("touch /tmp/u200/Latitude");
-	system("touch /tmp/u200/Longitude");
+	//system("touch /tmp/u200/Latitude");
+	//system("touch /tmp/u200/Longitude");
 	system("touch /tmp/u200/COG");
 	system("touch /tmp/u200/SOG");
 	system("touch /tmp/u200/Wind_Speed");
 	system("touch /tmp/u200/Wind_Angle");
 }
-
+*/
 
 /*
  *	Write each notnull [NAME-VALUE] entry of the current PGN to the relevant file
@@ -954,8 +956,8 @@ void writeondisk()
 			||	( currentPgn == 130306 && strcmp(currentList[i].name,"Wind_Angle")==0 && strcmp(currentList[3].value,"True (ground referenced to North)")==0 )		
 		){
 			
-			if (strcmp(currentList[i].value,"?")!=0) 
-			{
+			//if (strcmp(currentList[i].value,"?")!=0) 
+			//{
 				sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
 				fprintf(stdout,"  %s -> (%s)\n",tmpchar, currentList[i].value);
 
@@ -963,7 +965,7 @@ void writeondisk()
 				file = fopen(tmpchar,"w");
 				fprintf(file,"%s",currentList[i].value);
 				fclose(file);
-			}
+			//}
 		}
 	}
 	fprintf(stdout,"\n");
