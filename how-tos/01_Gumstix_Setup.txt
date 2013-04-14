@@ -1,0 +1,223 @@
+
+NOTE:
+	In the following commands I assume the source files to be in
+	"~/SDU/mdb1/sailboat-controller" (~ is your home dictory: /home/username/).
+	Change the following commands accordingly to your git repo location.
+
+---------------------------------------------------------------------------------------
+SET ENVIRONMENTAL VARIABLES
+---------------------------------------------------------------------------------------
+
+*** Create a temporary environment variable with the mdb1 project root path
+	$ MDB1SRCPATH=~/SDU/mdb1/sailboat-controller
+	$ MDB1IMGPATH=~/SDU/mdb1/overo_image
+
+
+---------------------------------------------------------------------------------------
+FORMAT SD CARD 
+---------------------------------------------------------------------------------------
+
+*** insert sd card in your pc and check the mounting point with the "mount" command
+	$ mount
+	(for instance: "/dev/sdb")
+
+
+*** partitioning
+	$ sudo $MDB1SRCPATH/utils/mkcard.sh /dev/sdb
+                                        ========
+
+*** EXTRACT AND INSERT THE SD CARD BACK IN THE READER
+
+
+*** check the partions were succesfully created
+	$ sudo fdisk -l /dev/sdb
+
+
+
+--------------------------------------------------------------------------------------
+WRITE OVERO IMAGE ON SD CARD
+--------------------------------------------------------------------------------------
+
+*** download images
+	$ 					$MDB1IMGPATH/
+
+*** extract images
+	$
+
+*** inserisci sd card (if not yet in the reader)
+
+*** check partition names
+	$ mount
+	(for instance: "/media/yourname/boot/" and "/media/yourname/rootfs/")
+
+
+*** write files to BOOT partition
+
+	$ sudo rm /media/mix/boot/*
+	$ sudo cp MLO /media/mix/boot/MLO
+	$ sudo cp u-boot.bin /media/mix/boot/u-boot.bin
+	$ sudo cp uImage /media/mix/boot/uImage
+
+
+*** write files to ROOTFS partition
+
+	$ sudo rm -r /media/mix/Angstrom/*
+	| sudo rm -r /media/mix/rootfs/*
+
+	$ sudo tar xaf omap3-desktop-nand-image-overo-booted.tar.bz2 -C /media/mix/Angstrom
+	| sudo tar xaf omap3-desktop-nand-image-overo-booted.tar.bz2 -C /media/mix/rootfs
+	
+
+*** unmount
+
+	$ sync
+	$ sudo umount /media/mix/boot
+	$ sudo umount /media/mix/Angstrom
+	| sudo umount /media/mix/rootfs
+
+
+*** extract sd card
+
+
+--------------------------------------------------------------------------------------
+SETUP WIFI
+--------------------------------------------------------------------------------------
+
+*** Insert the sdcard in Gumstis, DO NOT power up yet
+
+*** connect USB console cable and set-up a serial connection
+
+	$ screen /dev/ttyUSB0 115200
+
+*** Power up Gumstix
+
+*** Disable NetworkManager
+
+	# /etc/init.d/NetworkManager stop
+	(# opkg remove networkmanager --force-depends)
+
+
+*** setup wireless WPA connection to a ROUTER
+
+	# mv /etc/network/interfaces /etc/network/interfaces.orig
+	# nano /etc/network/interfaces
+	--> 
+		## ROUTER WIRELESS CONNECTION ###
+		allow-hotplug wlan1
+		iface wlan1 inet dhcp
+		pre-up wpa_supplicant -Dwext -iwlan1 -c/etc/wpa_supplicant.conf -B
+		down killall wpa_supplicant
+	<--
+
+	# cp /etc/network/interfaces /etc/network/interfaces.router
+	
+	# mv /etc/wpa_supplicant.conf /etc/wpa_supplicant.conf.orig
+	# nano /etc/wpa_supplicant.conf 
+	-->
+		ctrl_interface=/var/run/wpa_supplicant
+		ctrl_interface_group=0
+		eapol_version=1
+		ap_scan=1
+		fast_reauth=1
+
+		network={
+			  ssid="XXXXXXXXXXXXXXXX"
+			  proto=WPA2                 # try WPA RSN if you WPA2 fails
+			  key_mgmt=WPA-PSK
+			  pairwise=CCMP TKIP
+			  group=CCMP TKIP
+			  scan_ssid=1
+			  psk="XXXXXXXXXXXXXXXX"
+			  priority=10
+		}
+	<--
+
+
+
+*** setup AD-HOC connection con DHCP
+
+	# nano /etc/network/interfaces
+	-->
+		### AD-HOC WIRELESS NETWORK ###
+		auto wlan1
+		iface wlan1 inet static
+		address 10.42.0.32
+		netmask 255.0.0.0
+		wireless-mode ad-hoc
+		wireless-essid gumstix6
+	<--
+
+	# cp /etc/network/interfaces /etc/network/interfaces.adhoc
+
+	# nano /etc/udhcpd.conf
+	-->
+		#start address
+		start           10.42.0.1
+		#end address
+		end             10.42.0.30
+		#interface to listen on
+		interface       wlan1
+		#maximum number of leases
+		max_leases      64
+	<--
+
+	# touch /var/lib/misc/udhcpd.leases
+
+
+*** unregister networkmanager service on startup
+	
+	# update-rc.d -f NetworkManager remove
+
+
+*** check wireless ad-hoc connection
+
+	# reboot
+	# /etc/init.d/NetworkManager stop
+	(wait 1 min for wlan1)
+	(# ip link	)
+	(# ifdown wlan1)
+	(# ifup wlan1 )
+	# udhcpd /etc/udhcpd.conf
+
+
+
+
+--------------------------------------------------------------------------------------
+BOOT SCRIPT
+--------------------------------------------------------------------------------------
+
+*** create a shell script to run on every start-up
+
+	# nano /etc/init.d/gumstixboot.sh
+	--> 
+		#! /bin/sh
+
+		# Carry out specific functions when asked to by the system
+		case "$1" in
+		  start)
+			echo "Starting gumstixboot.sh.."
+			# /etc/init.d/NetworkManager stop
+			echo "GUMSTIX BOOTSCRIPT: start dhcp server.."
+			udhcpd /etc/udhcpd.conf
+			echo "GUMSTIX BOOTSCRIPT: modprobe ftdi_sio.."
+			modprobe ftdi_sio vendor=0x0403 product=0xd9aa
+			;;
+		  stop)
+			echo "Stopping script gumstixboot"
+			;;
+		  *)
+			echo "Usage: /etc/init.d/gumstixboot {start|stop}"
+			exit 1
+			;;
+		esac
+
+		exit 0
+	<--
+
+
+*** register boot script on startup sequances
+
+	# update-rc.d -f gumstixboot.sh start 99 2 3 4 5 .
+	
+
+

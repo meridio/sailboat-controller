@@ -1,0 +1,117 @@
+
+refs: 
+	-- http://gumstix.org/basic-cross-compilation.html
+	-- http://wiki.gumstix.org/index.php?title=Kernel_Build
+
+
+--------------------------------------------------------------------------------------
+GET THE SOURCE
+--------------------------------------------------------------------------------------
+
+** clone the git repo with the source code
+
+	$ cd /home/mix/SDU/mdb1/01_SETUP_GUMSTIX/image_overo
+	$ git clone https://github.com/gumstix/Gumstix-Overo-Kernel.git
+
+
+--------------------------------------------------------------------------------------
+CONFIGURE
+--------------------------------------------------------------------------------------
+
+** copia il config_overo nella cartella 
+	
+	$ cd /home/mix/SDU/mdb1/01_SETUP_GUMSTIX/image_overo/Gumstix-Overo-Kernel
+	$ cp overo_kernel_3.2.config ./arch/arm/configs/
+	? cp overo_kernel_3.2.config .config
+
+
+** imposta config
+
+	$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- overo_kernel_3.2.config
+
+
+** modifica configurazione
+
+	$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- menuconfig
+
+
+--------------------------------------------------------------------------------------
+COMPILE
+--------------------------------------------------------------------------------------
+
+** compile the kernel
+
+	$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- uImage -j4
+
+
+** compile modules
+	
+	$ make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- modules -j4
+	
+
+** per cambiare il nome del kernel usare var localversion nel config e
+   ricompilare sia il kernel che i moduli
+
+
+--------------------------------------------------------------------------------------
+INSTALL
+--------------------------------------------------------------------------------------
+
+** install kernel
+	
+	- uImage can be found in arch/arm/boot/ , copy it to the boot partion of the sdcard
+
+** install modules (check partition name)
+	
+	? depmod
+	# sudo INSTALL_MOD_PATH=/media/rootfs make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- modules_install
+
+
+--------------------------------------------------------------------------------------
+TEST MODULE
+--------------------------------------------------------------------------------------
+	
+** craeate folder for a module template
+	
+	$ cd /home/mix/SDU/mdb1/03_KERNEL_AND_DRIVERS/led_module
+
+
+** get the sample module
+
+	$ wget http://svn.hylands.org/linux/gpio-event/module/gpio-event-drv.c
+	$ wget http://svn.hylands.org/linux/gpio-event/module/gpio-event-drv.h
+
+** create a Makefile for cross-compilation in the same folder
+
+--->
+obj-m += gpio-event-drv.o
+
+CROSS = arm-linux-gnueabi-
+
+# KERNEL source folder
+KDIR = /home/mix/SDU/mdb1/01_SETUP_GUMSTIX/image_overo/Gumstix-Overo-Kernel
+
+PWD := $(shell pwd)
+
+all:
+	make ARCH=arm -C $(KDIR) M=$(PWD) CROSS_COMPILE=$(CROSS) modules
+	# This if gumstix is up and running with the ad-hoc network
+	# scp gpio-event-drv.ko root@10.42.0.32:/home/root
+clean:
+	make -C $(KDIR) M=$(PWD) CROSS_COMPILE=$(CROSS) clean
+<---
+
+
+** compile
+
+	$ make
+
+
+** copy manually to gumstix (if the scp is commented in the makefile)
+
+** install the module
+	
+	# insmod gpio-event-drv.ko
+
+
+
