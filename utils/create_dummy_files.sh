@@ -3,7 +3,13 @@
 mkdir /tmp/u200
 mkdir /tmp/sailboat
 
-echo "0" > /tmp/sailboat/Manual_Control
+echo 0 > /tmp/sailboat/Manual_Control
+echo 0 > /tmp/sailboat/Manual_Control_Rudder
+echo 0 > /tmp/sailboat/Manual_Control_Sail
+echo 0 > /tmp/sailboat/point_start_lat
+echo 0 > /tmp/sailboat/point_start_lon
+echo 0 > /tmp/sailboat/point_end_lat
+echo 0 > /tmp/sailboat/point_end_lon
 
 echo "15.1" > /tmp/u200/Rate
 
