@@ -4,20 +4,22 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 FILE* file;
 float Rate,Heading,Deviation,Variation,Yaw,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle;
 int Manual_Control;
 
-
+void initfiles();
 void check_manual_control();
 void read_weather_station();
 
 
 int main(int argc, char ** argv)
 {
-	fprintf(stdout,"Sailboat-controller running..\n");
+	initfiles();
+	fprintf(stdout,"\nSailboat-controller running..\n");
 	while (1) {
 		
 		check_manual_control();
@@ -26,19 +28,22 @@ int main(int argc, char ** argv)
 		if (Manual_Control) 
 		{
 			printf("Manual control is ON\n");
+			// use the values from [Manual_Control_Rudder] and [Manual_Control_Sail] to control the actuators
 		}
 		else
 		{
 			printf("Manual control is OFF\n");
-		}
+			// here comes the control logic based on the sensor values (0 means not_set)
 
-		if (Heading > 40.6)
-		{
-			printf("Heading [%6.3f deg] is greater than 40.6 deg\n", Heading);
-		}
-		else
-		{
-			printf("Heading [%6.3f deg] is smaller than 40.6 deg\n", Heading);
+			if (Heading > 40.6)
+			{
+				printf("Heading [%6.3f deg] is greater than 40.6 deg\n", Heading);
+			}
+			else
+			{
+				printf("Heading [%6.3f deg] is smaller than 40.6 deg\n", Heading);
+			}
+
 		}
 
 		sleep(1);
@@ -49,23 +54,51 @@ int main(int argc, char ** argv)
 
 
 
+/*
+ *	Create empty files: Manual Control, Starting Point, Ending Point
+ */
+void initfiles()
+{
+	system("mkdir /tmp/sailboat");
+
+	system("echo 0 > /tmp/sailboat/Manual_Control");
+	system("echo 0 > /tmp/sailboat/Manual_Control_Rudder");
+	system("echo 0 > /tmp/sailboat/Manual_Control_Sail");
+	system("echo 0 > /tmp/sailboat/point_start_lat");
+	system("echo 0 > /tmp/sailboat/point_start_lon");
+	system("echo 0 > /tmp/sailboat/point_end_lat");
+	system("echo 0 > /tmp/sailboat/point_end_lon");
+}
 
 
-
+/*
+ *	Read Manual_Control value
+ */
 void check_manual_control()
 {
-	//MANUAL CONTROL
 	file = fopen ("/tmp/sailboat/Manual_Control", "r");
-  	fscanf (file, "%d", &Manual_Control);
+	fscanf (file, "%d", &Manual_Control);
 	fclose (file); 
 }
 
+
+/*
+ *	Read data from the Weather Station
+ */
 void read_weather_station()
 {
 	//RATE OF TURN
 	file = fopen ("/tmp/u200/Rate", "r");
-  	fscanf (file, "%f", &Rate);
-	fclose (file); 
+	if(file != 0)
+	{
+  		fscanf (file, "%f", &Rate);
+		fclose (file);
+	}
+	else
+	{
+		printf("ERROR: Files from Weather Station are missing.\n");
+		exit (1);
+	}
 
 	//VESSEL HEADING
 	file = fopen ("/tmp/u200/Heading", "r");

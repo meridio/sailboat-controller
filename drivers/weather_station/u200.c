@@ -15,13 +15,8 @@ https://github.com/canboat/canboat.git
 
 
 /*
-	- code cleanup (remove all commented statements, per la parte decode almeno)
-	- github push
-	- file write timeout?
-	- reinserire il parsing dei parametri: DEBUG -d
-	- significato di FD1_Ready? si può eliminare e utilizzare solo R?
-	- ripristinare messaggio di errore quando manca parametro device
-	- fare del code cleaning in u200.c per la parte di read
+	- set a write file timeout
+	- init function
 */
 
 
@@ -64,6 +59,7 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 int i, pos=0, currentPgn=0;
 char tmpchar[50];
 ListItem currentList[20];
+void initfiles();
 void addtolist();
 void writeondisk();
 
@@ -116,6 +112,7 @@ int main(int argc, char ** argv)
 		sleep(2);
 	}
 
+	initfiles();
 
 	for (;;)
 	{
@@ -133,6 +130,8 @@ int main(int argc, char ** argv)
 			}
 		}
 	}
+
+	// REMOVE FILES
 
 	close(handle);
 	return 0;
@@ -1080,7 +1079,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 	{
 		// undefined value
 		fprintf(stdout,"   [%s]: ???? \n",fieldName);
-		addtolist(fieldName,"");
+		addtolist(fieldName,"0");
 	}
 
 	return true;
@@ -1106,7 +1105,7 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 	if (value > ((bytes == 8) ? INT64_C(0x7ffffffffffffffd) : INT64_C(0x7ffffffd)))
 	{
 		fprintf(stdout," [%s]: ???? **********\n",name);
-		addtolist(name, "");
+		addtolist(name, "0");
 		return false;
 	}
 
@@ -1179,6 +1178,28 @@ void addtolist(char name[], char value[])
 	strcpy(m.value, value);
 	currentList[pos]=m;
 	pos++;
+}
+
+/*
+ *	Create Empty files
+ */
+void initFiles(){
+	//system("mkdir /tmp/{127251,127250,127257,129025,129026,130306}");
+	system("mkdir /tmp/u200");
+
+	system("echo 0 > /tmp/u200/Rate");
+	system("echo 0 > /tmp/u200/Heading");
+	system("echo 0 > /tmp/u200/Deviation");
+	system("echo 0 > /tmp/u200/Variation");
+	system("echo 0 > /tmp/u200/Yaw");
+	system("echo 0 > /tmp/u200/Pitch");
+	system("echo 0 > /tmp/u200/Roll");
+	system("echo 0 > /tmp/u200/Latitude");
+	system("echo 0 > /tmp/u200/Longitude");
+	system("echo 0 > /tmp/u200/COG");
+	system("echo 0 > /tmp/u200/SOG");
+	system("echo 0 > /tmp/u200/Wind_Speed");
+	system("echo 0 > /tmp/u200/Wind_Angle");
 }
 
 
