@@ -5,7 +5,8 @@ do
 
 	clear
 
-	echo "[Rate of Turn]"
+	echo " "
+	echo "[Rate of Turn]                         Manual Control: "$(</tmp/sailboat/Manual_Control)
 	echo "  -  Rate: "$(</tmp/u200/Rate)
 	echo " "
 	echo "[Vessel Heading]"

@@ -8,8 +8,10 @@
 
 FILE* file;
 float Rate,Heading,Deviation,Variation,Yaw,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle;
+int Manual_Control;
 
 
+void check_manual_control();
 void read_weather_station();
 
 
@@ -18,8 +20,18 @@ int main(int argc, char ** argv)
 	fprintf(stdout,"Sailboat-controller running..\n");
 	while (1) {
 		
+		check_manual_control();
 		read_weather_station();
 		
+		if (Manual_Control) 
+		{
+			printf("Manual control is ON\n");
+		}
+		else
+		{
+			printf("Manual control is OFF\n");
+		}
+
 		if (Heading > 40.6)
 		{
 			printf("Heading [%6.3f deg] is greater than 40.6 deg\n", Heading);
@@ -34,6 +46,19 @@ int main(int argc, char ** argv)
 	return 0;
 }
 
+
+
+
+
+
+
+void check_manual_control()
+{
+	//MANUAL CONTROL
+	file = fopen ("/tmp/sailboat/Manual_Control", "r");
+  	fscanf (file, "%d", &Manual_Control);
+	fclose (file); 
+}
 
 void read_weather_station()
 {

@@ -1,6 +1,9 @@
 #!/bin/bash
 
 mkdir /tmp/u200
+mkdir /tmp/sailboat
+
+echo "0" > /tmp/sailboat/Manual_Control
 
 echo "15.1" > /tmp/u200/Rate
 
