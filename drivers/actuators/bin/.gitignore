@@ -1,0 +1,5 @@
+# Ignore compile source code (every file in this directory)
+*
+
+# Use this file as a placeholder for an empty /bin
+!.gitignore
