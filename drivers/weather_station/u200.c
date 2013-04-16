@@ -60,6 +60,7 @@ int i, pos=0, currentPgn=0;
 char tmpchar[50];
 ListItem currentList[20];
 void initfiles();
+void removefiles();
 void addtolist();
 void writeondisk();
 
@@ -131,7 +132,8 @@ int main(int argc, char ** argv)
 		}
 	}
 
-	// REMOVE FILES
+	fprintf(stderr, "Error: u200 process terminated.\n");
+	removefiles();
 
 	close(handle);
 	return 0;
@@ -572,6 +574,7 @@ void printPacket(size_t index, RawMessage * msg)
 		if (!device[msg->src])
 		{
 			fprintf(stdout, "Error: Out of memory\n");
+			removefiles();
 			exit(1);
 		}
 	}
@@ -586,6 +589,7 @@ void printPacket(size_t index, RawMessage * msg)
 		if (!packet->data)
 		{
 			fprintf(stdout, "Out of memory\n");
+			removefiles();
 			exit(1);
 		}
 	}
@@ -601,6 +605,7 @@ void printPacket(size_t index, RawMessage * msg)
 			if (!packet->data)
 			{
 				fprintf(stdout, "Out of memory\n");
+				removefiles();
 				exit(1);
 			}
 			packet->allocSize = msg->len;
@@ -1200,6 +1205,15 @@ void initFiles(){
 	system("echo 0 > /tmp/u200/SOG");
 	system("echo 0 > /tmp/u200/Wind_Speed");
 	system("echo 0 > /tmp/u200/Wind_Angle");
+}
+
+
+/*
+ *	Revome files on exit/error
+ */
+void removefiles()
+{
+	system("rm /tmp/u200/*");
 }
 
 
