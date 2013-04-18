@@ -3,13 +3,21 @@
 mkdir /tmp/u200
 mkdir /tmp/sailboat
 
+
+echo 0 > /tmp/sailboat/Navigation_System
+
 echo 0 > /tmp/sailboat/Manual_Control
 echo 0 > /tmp/sailboat/Manual_Control_Rudder
 echo 0 > /tmp/sailboat/Manual_Control_Sail
-echo 0 > /tmp/sailboat/point_start_lat
-echo 0 > /tmp/sailboat/point_start_lon
-echo 0 > /tmp/sailboat/point_end_lat
-echo 0 > /tmp/sailboat/point_end_lon
+
+echo 0 > /tmp/sailboat/Point_Start_Lat
+echo 0 > /tmp/sailboat/Point_Start_Lon
+echo 0 > /tmp/sailboat/Point_End_Lat
+echo 0 > /tmp/sailboat/Point_End_Lon
+
+echo 20 > /tmp/sailboat/Rudder_Feedback
+
+
 
 echo "15.1" > /tmp/u200/Rate
 
