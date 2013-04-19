@@ -32,7 +32,7 @@ do
 	echo "  -  Wind_Angle: "$(</tmp/u200/Wind_Angle)
 	echo " "
 		
-	sleep 2
+	sleep 1
 
 done
 

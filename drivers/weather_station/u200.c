@@ -59,7 +59,7 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 int i, pos=0, currentPgn=0;
 char tmpchar[50];
 ListItem currentList[20];
-void initfiles();
+void initFiles();
 void removefiles();
 void addtolist();
 void writeondisk();
@@ -113,7 +113,7 @@ int main(int argc, char ** argv)
 		sleep(2);
 	}
 
-	initfiles();
+	initFiles();
 
 	for (;;)
 	{
