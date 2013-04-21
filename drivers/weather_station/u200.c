@@ -13,13 +13,6 @@ https://github.com/canboat/canboat.git
 */
 
 
-
-/*
-	- set a write file timeout
-	- init function
-*/
-
-
 #include "u200.h"
 
 // read
@@ -56,9 +49,11 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 static bool printLatLon(char * name, double resolution, uint8_t * data, size_t byte);
 
 // write to disk
-int i, pos=0, currentPgn=0;
+int i, k, pos=0, currentPgn=0;
 char tmpchar[50];
 ListItem currentList[20];
+enum Labels { Rate, Heading, Deviation, Variation, Yaw, Pitch, Roll, Latitude, Longitude, COG, SOG, Wind_Speed, Wind_Angle, TTOT };
+time_t timer_curr[TTOT], timer_last[TTOT];
 void initFiles();
 void removefiles();
 void addtolist();
@@ -112,6 +107,13 @@ int main(int argc, char ** argv)
 		writeMessage(handle, NGT_MSG_SEND, NGT_STARTUP_SEQ, sizeof(NGT_STARTUP_SEQ));
 		sleep(2);
 	}
+	
+	//set write_to_file timers
+	for ( i = 0; i < TTOT; ++i )
+    {
+		timer_curr[i] = time(NULL);
+		timer_last[i] = timer_curr[i]-3;
+	}	
 
 	initFiles();
 
@@ -718,7 +720,7 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 	pgn = &pgnList[index];
 
 	//    mprintf("%s %u %3u %3u %6u %s:", msg->timestamp, msg->prio, msg->src, msg->dst, msg->pgn, pgn->description);
-	fprintf(stdout,"\n----- PGN [%6u] -- %s -----------\n", msg->pgn, pgn->description);
+	// fprintf(stdout,"\n----- PGN [%6u] -- %s -----------\n", msg->pgn, pgn->description);
 
 	// parse all the bytes of the message body and translate them into numeric values
 	for (i = 0, startBit = 0, data = dataStart; data < dataEnd; i++)
@@ -783,17 +785,17 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 
 ascii_string:
 
-				fprintf(stdout,"DBG_02: [%s] DATA: [", fieldName);
+				//fprintf(stdout,"DBG_02: [%s] DATA: [", fieldName);
 
 				for (k = 0; k < len; k++)
 				{
 					if (data[k] >= ' ' && data[k] <= '~')
 					{
 						int c = data[k];
-						fprintf(stdout,"(%c)", c);
+						//fprintf(stdout,"(%c)", c);
 					}
 				}
-				fprintf(stdout,"]\n");
+				//fprintf(stdout,"]\n");
 			}
 			else if (field.resolution == RES_STRING)
 			{
@@ -817,54 +819,54 @@ ascii_string:
 				}
 				else { bytes = 1; len = 0; }
 
-				if (len) { fprintf(stdout,"**DBG_04: STRING: FIELD [%s], DATA [%s]\n", fieldName, data); }
+				//if (len) { fprintf(stdout,"**DBG_04: STRING: FIELD [%s], DATA [%s]\n", fieldName, data); }
 				bits = BYTES(bytes);
 			}
 			else if (field.resolution == RES_LONGITUDE || field.resolution == RES_LATITUDE)
 			{
-				fprintf(stdout,"DBG_05: LAT-LON -> ");
+				//fprintf(stdout,"DBG_05: LAT-LON -> ");
 				printLatLon(fieldName, field.resolution, data, bytes);
 			}
 			else if (field.resolution == RES_DATE)
 			{
 				memcpy((void *) &valueu16, data, 2);
-				fprintf(stdout,"DBG_06: DATE -> (ignored)\n");
+				//fprintf(stdout,"DBG_06: DATE -> (ignored)\n");
 				//printDate(fieldName, valueu16);
 				//currentDate = valueu16;
 			}
 			else if (field.resolution == RES_TIME)
 			{
 				memcpy((void *) &valueu32, data, 4);
-				fprintf(stdout,"DBG_07: TIME -> (ignored)\n");
+				//fprintf(stdout,"DBG_07: TIME -> (ignored)\n");
 				//printTime(fieldName, valueu32);
 				//currentTime = valueu32;
 			}
 			else if (field.resolution == RES_TEMPERATURE)
 			{
 				memcpy((void *) &valueu16, data, 2);
-				fprintf(stdout,"DBG_08: TEMPERATURE: (ignored)\n");
+				//fprintf(stdout,"DBG_08: TEMPERATURE: (ignored)\n");
 				//printTemperature(fieldName, valueu16);
 			}
 			else if (field.resolution == RES_PRESSURE)
 			{
 				memcpy((void *) &valueu16, data, 2);
-				fprintf(stdout,"DBG_09: PRESSURE: (ignored)\n");
+				//fprintf(stdout,"DBG_09: PRESSURE: (ignored)\n");
 				//printPressure(fieldName, valueu16);
 			}
 			else if (field.resolution == RES_6BITASCII)
 			{
 				//print6BitASCIIText(fieldName, data, startBit, bits);
-				fprintf(stdout,"**DBG_10: ASCII TEXT [...]\n");
+				//fprintf(stdout,"**DBG_10: ASCII TEXT [...]\n");
 			}
 			else if (bits == LEN_VARIABLE)
 			{
 				//printVarNumber(fieldName, pgn, refPgn, &field, data, startBit, &bits);
-				fprintf(stdout,"DBG_11: VAR_NUM [...]\n");
+				//fprintf(stdout,"DBG_11: VAR_NUM [...]\n");
 			}
 			else if (bits > BYTES(8))
 			{
 				//printHex(fieldName, data, startBit, bits);
-				fprintf(stdout,"DBG_12: HEX [...]\n");
+				//fprintf(stdout,"DBG_12: HEX [...]\n");
 			}
 			else if (field.resolution == RES_INTEGER
 			|| field.resolution == RES_LOOKUP
@@ -872,7 +874,7 @@ ascii_string:
 			|| field.resolution == RES_MANUFACTURER
 			)
 			{
-				fprintf(stdout,"DBG_13: NUM -> ");
+				//fprintf(stdout,"DBG_13: NUM -> ");
 				printNumber(fieldName, &field, data, startBit, bits);
 			}
 			else
@@ -883,12 +885,12 @@ ascii_string:
 		}
 		else if (field.resolution > 0.0)
 		{
-			fprintf(stdout,"DBG_14: NUM -> ");
+			//fprintf(stdout,"DBG_14: NUM -> ");
 			printNumber(fieldName, &field, data, startBit, bits);
 		}
 		if (!r)
 		{
-			fprintf(stdout,"DBG!! IGNORE THIS\n\n");
+			//fprintf(stdout,"DBG!! IGNORE THIS\n\n");
 			return false;
 		}
 
@@ -1001,7 +1003,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 			s = field->description;
 			if (!s) { s = lookfor + 1; }
 
-			fprintf(stdout,"A) FIELD [%s], DATA [%s]\n", fieldName, data);
+			//fprintf(stdout,"A) FIELD [%s], DATA [%s]\n", fieldName, data);
 		}
 		else
 		if (field->resolution == RES_LOOKUP && field->units)
@@ -1017,31 +1019,31 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 				e = strchr(s, ',');
 				e = e ? e : s + strlen(s);
 
-				fprintf(stdout,"B) [%s] : %.*s\n", fieldName,  (int) (e - s), s);
+				//fprintf(stdout,"B) [%s] : %.*s\n", fieldName,  (int) (e - s), s);
 
 				sprintf(tmpchar,"%.*s", (int) (e - s), s);
 				addtolist(fieldName, tmpchar);
 			}
 			else
 			{
-				fprintf(stdout,"C) FIELD [%s], DATA [%"PRId64"]\n", fieldName, value);
+				//fprintf(stdout,"C) FIELD [%s], DATA [%"PRId64"]\n", fieldName, value);
 			}
 		}
 		else if (field->resolution == RES_BINARY)
 		{
-			fprintf(stdout,"D) FIELD [%s], DATA [%"PRIx64"]\n", fieldName, value);
+			//fprintf(stdout,"D) FIELD [%s], DATA [%"PRIx64"]\n", fieldName, value);
 		}
 		else if (field->resolution == RES_MANUFACTURER)
 		{
 			// I DONT'T CARE ABOUT MANUFACTURER
-			fprintf(stdout,"MANUFACTURER ...\n");
+			//fprintf(stdout,"MANUFACTURER ...\n");
 		}
 		else
 		{
 
 			if (field->resolution == RES_INTEGER)
 			{
-				fprintf(stdout,"E) FIELD [%s], DATA = [%"PRId64"]", fieldName, data);
+				//fprintf(stdout,"E) FIELD [%s], DATA = [%"PRId64"]", fieldName, data);
 			}
 			else
 			{
@@ -1059,22 +1061,22 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 
 				if (field->units && strcmp(field->units, "m") == 0 && a >= 1000.0)
 				{
-					fprintf(stdout,"F) FIELD [%s], DATA = [%.*f]Km \n", fieldName, precision + 3, a / 1000);
+					//fprintf(stdout,"F) FIELD [%s], DATA = [%.*f]Km \n", fieldName, precision + 3, a / 1000);
 				}
 				else
 				{
-					fprintf(stdout,"G) [%s] : %.*f ", fieldName, precision, a);
+					//fprintf(stdout,"G) [%s] : %.*f ", fieldName, precision, a);
 
 					sprintf(tmpchar,"%.*f", precision, a);
 					addtolist(fieldName, tmpchar);
 
 					if (field->units)
 					{
-						fprintf(stdout,"(%s)\n", field->units);
+						//fprintf(stdout,"(%s)\n", field->units);
 					}
 					else
 					{
-						fprintf(stdout,"\n");
+						//fprintf(stdout,"\n");
 					}
 				}
 			}
@@ -1083,7 +1085,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
 	else
 	{
 		// undefined value
-		fprintf(stdout,"   [%s]: ???? \n",fieldName);
+		//fprintf(stdout,"   [%s]: ???? \n",fieldName);
 		addtolist(fieldName,"0");
 	}
 
@@ -1109,7 +1111,7 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 	}
 	if (value > ((bytes == 8) ? INT64_C(0x7ffffffffffffffd) : INT64_C(0x7ffffffd)))
 	{
-		fprintf(stdout," [%s]: ???? **********\n",name);
+		//fprintf(stdout," [%s]: ???? **********\n",name);
 		addtolist(name, "0");
 		return false;
 	}
@@ -1123,7 +1125,7 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 
 	// DD
 		double dd = (double) value / (double) RES_LAT_LONG_PRECISION;
-		fprintf(stdout,"%s = %010.7f \n",name, dd);
+		//fprintf(stdout,"%s = %010.7f \n",name, dd);
 		sprintf(tmpchar,"%010.7f", dd);
 		addtolist(name, tmpchar);
    
@@ -1224,7 +1226,7 @@ void writeondisk()
 {
 	FILE *file; 
 
-	fprintf(stdout,"\n");
+	//fprintf(stdout,"\n");
 
 	// For each Field decoded from the current message body, write the value to file if not null
 	for(i=0;i<pos;i++) {
@@ -1256,14 +1258,41 @@ void writeondisk()
 			||	( currentPgn == 130306 && strcmp(currentList[i].name,"Wind_Angle")==0 && strcmp(currentList[3].value,"True (ground referenced to North)")==0 )		
 		){
 			
+			if (strcmp(currentList[i].name,"Rate") == 0) 	{ k = 0; }
+			if (strcmp(currentList[i].name,"Heading") == 0) { k = 1; }
+			if (strcmp(currentList[i].name,"Deviation") == 0) { k = 2; }
+			if (strcmp(currentList[i].name,"Variation") == 0) { k = 3; }
+			if (strcmp(currentList[i].name,"Yaw") == 0) 	{ k = 4; }
+			if (strcmp(currentList[i].name,"Pitch") == 0) 	{ k = 5; }
+			if (strcmp(currentList[i].name,"Roll") == 0) 	{ k = 6; }
+			if (strcmp(currentList[i].name,"Latitude") == 0) { k = 7; }
+			if (strcmp(currentList[i].name,"Longitude") == 0){ k = 8; }
+			if (strcmp(currentList[i].name,"COG") == 0) 	{ k = 9; }
+			if (strcmp(currentList[i].name,"SOG") == 0) 	{ k = 10; }
+			if (strcmp(currentList[i].name,"Wind_Speed") == 0) { k = 11; }
+			if (strcmp(currentList[i].name,"Wind_Angle") == 0) { k = 12; }
 
-			sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
-			fprintf(stdout,"  %s -> (%s)\n",tmpchar, currentList[i].value);
+			//update timer for current entry
+			timer_curr[k] = time(NULL);
 
-			// write to file		
-			file = fopen(tmpchar,"w");
-			fprintf(file,"%s",currentList[i].value);
-			fclose(file);
+			//check timer for current entry
+			if (difftime (timer_curr[k],timer_last[k]) >= WRITE_INTERVAL) {
+
+				sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
+				fprintf(stdout,"  %s -> (%s)\n",tmpchar, currentList[i].value);
+
+				// write to file		
+				file = fopen(tmpchar,"w");
+				fprintf(file,"%s",currentList[i].value);
+				fclose(file);
+			
+				timer_last[k] = timer_curr[k];
+			}
+
+
+			
+
+			
 
 		}
 	}

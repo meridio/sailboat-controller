@@ -49,6 +49,10 @@
 #define BUFFER_SIZE 900
 
 
+// time interval in seconds to update /tmp files
+#define WRITE_INTERVAL	2
+
+
 /* function definitions */
 
 #ifndef ARRAY_SIZE

@@ -104,7 +104,7 @@ void initfiles()
 void check_system_status()
 {
 	file = fopen ("/tmp/sailboat/Navigation_System", "r");
-	fscanf (file, "%d", &Manual_Control);
+	fscanf (file, "%d", &Navigation_System);
 	fclose (file);
 	file = fopen ("/tmp/sailboat/Manual_Control", "r");
 	fscanf (file, "%d", &Manual_Control);
