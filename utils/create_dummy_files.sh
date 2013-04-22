@@ -5,6 +5,8 @@ mkdir /tmp/sailboat
 
 
 echo 0 > /tmp/sailboat/Navigation_System
+echo 0 > /tmp/sailboat/Navigation_System_Rudder
+echo 0 > /tmp/sailboat/Navigation_System_Sail
 
 echo 0 > /tmp/sailboat/Manual_Control
 echo 0 > /tmp/sailboat/Manual_Control_Rudder
