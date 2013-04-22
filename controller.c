@@ -10,7 +10,9 @@
 FILE* file;
 float Rate,Heading,Deviation,Variation,Yaw,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle;
 float Point_Start_Lat, Point_Start_Lon, Point_End_Lat, Point_End_Lon;
-float Manual_Control_Rudder, Manual_Control_Sail, Rudder_Feedback;
+float Manual_Control_Rudder, Manual_Control_Sail;
+float Navigation_System_Rudder, Navigation_System_Sail;
+int Rudder_Feedback, Rudder_Desired_Angle;
 int Navigation_System, Manual_Control;
 
 void initfiles();
@@ -18,24 +20,33 @@ void check_system_status();
 void read_manual_control_values();
 void read_weather_station();
 void read_rudder_feedback();
+void move_rudder(int angle);
+void read_coordinates();
+void calculate_rudder_angle();
 
 
 int main(int argc, char ** argv)
 {
 	initfiles();
 	fprintf(stdout,"\nSailboat-controller running..\n");
+	read_weather_station();
+	read_rudder_feedback();
+
 	while (1) {
 		
 		check_system_status();
-		read_weather_station();
 		
 		if (Manual_Control) 
 		{
 			// MANUAL CONTROL IS ON
-			// Values for the RUDDER and SAIL angles are received from the User Interface.
+			// Values for the RUDDER and SAIL positions are received from the User Interface.
 			// Use [Manual_Control_Rudder] and [Manual_Control_Sail] files to control the actuators.
-			printf("Manual control is ON\n");
+			
+			// Read desired values set by the Graphical User Interface
+			read_manual_control_values();
 
+			// Move the rudder to the desired position
+			move_rudder(Manual_Control_Rudder); 		
 
 		}
 		else
@@ -43,19 +54,24 @@ int main(int argc, char ** argv)
 
 			if (Navigation_System) 
 			{
-			
-				// here comes the control logic based on the sensor values (0 means not_set)
-				printf("Manual control is OFF\n");
-			
+				// "AUTOPILOT" is activated.
 
-				if (Heading > 40.6)
-				{
-					printf("Heading [%6.3f deg] is greater than 40.6 deg\n", Heading);
-				}
-				else
-				{
-					printf("Heading [%6.3f deg] is smaller than 40.6 deg\n", Heading);
-				}
+				// Read data from the Weather station: Gps, Wind, Yaw, Roll, Rate of turn, ...
+				read_weather_station();
+				
+				// Read START and TARGET point coordinates
+				read_coordinates();
+			
+				// Calculate the rudder desired angle based on environmental conditions and target position
+				calculate_rudder_angle();
+
+				// Move the rudder to the desired angle
+				move_rudder(Rudder_Desired_Angle);
+
+				// If the desired point is reached (20m tollerance), switch the coordinates and come back home
+				// calculate_distance();
+				// switch_coordinates();
+				
 			}
 			else
 			{
@@ -82,6 +98,8 @@ void initfiles()
 	system("mkdir /tmp/sailboat");
 
 	system("echo 0 > /tmp/sailboat/Navigation_System");
+	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
+	system("echo 0 > /tmp/sailboat/Navigation_System_Sail");
 	system("echo 0 > /tmp/sailboat/Manual_Control");
 	system("echo 0 > /tmp/sailboat/Manual_Control_Rudder");
 	system("echo 0 > /tmp/sailboat/Manual_Control_Sail");
@@ -137,7 +155,7 @@ void read_rudder_feedback()
 	file = fopen ("/tmp/sailboat/Rudder_Feedback", "r");
 	if(file != 0)
 	{
-  		fscanf (file, "%f", &Rudder_Feedback);
+  		fscanf (file, "%d", &Rudder_Feedback);
 		fclose (file);
 	}
 	else
@@ -146,6 +164,53 @@ void read_rudder_feedback()
 		exit (1);
 	}
 }
+
+
+/*
+ *	Move the rudder to the desired position.
+ *	Write the desired angle to a file [] to be handled by another process 
+ */
+void move_rudder(int angle)
+{
+	file = fopen("Navigation_System_Rudder","w");
+	fprintf(file,"%d",angle);
+	fclose(file);
+}
+
+
+/*
+ *	Read START and END point coordinated (latitude and longitude)
+ *	Coordinates format is DD
+ */
+void read_coordinates()
+{
+	file = fopen ("/tmp/sailboat/Point_Start_Lat", "r");
+	fscanf (file, "%f", &Point_Start_Lat);
+	fclose (file);
+	file = fopen ("/tmp/sailboat/Point_Start_Lon", "r");
+	fscanf (file, "%f", &Point_Start_Lon);
+	fclose (file);
+	file = fopen ("/tmp/sailboat/Point_End_Lat", "r");
+	fscanf (file, "%f", &Point_End_Lat);
+	fclose (file);
+	file = fopen ("/tmp/sailboat/Point_End_Lon", "r");
+	fscanf (file, "%f", &Point_End_Lon);
+	fclose (file); 
+}
+
+
+/*
+ *	Calulate the desired RUDDER ANGLE position based on the following global variables:
+ *		- Direction of the Target Point
+ *		- Current Heading
+ *	The result ia a rounded value of the angle stored in the [Rudder_Desired_Angle] global variable
+ */
+void calculate_rudder_angle()
+{
+	// do the magic;
+	Rudder_Desired_Angle=0;
+}
+
 
 
 /*
