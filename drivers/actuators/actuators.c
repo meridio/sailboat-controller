@@ -29,7 +29,7 @@ int main(int argc, char ** argv) {
 
 		//read from ADC
 		/*ADC READ*/
-		
+		 
 		//adc_value = ???
 		
 		//do convertion adc -> angle
