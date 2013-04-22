@@ -21,6 +21,8 @@ void read_manual_control_values();
 void read_weather_station();
 void read_rudder_feedback();
 void move_rudder(int angle);
+void read_coordinates();
+void calculate_rudder_angle();
 
 
 int main(int argc, char ** argv)
@@ -153,7 +155,7 @@ void read_rudder_feedback()
 	file = fopen ("/tmp/sailboat/Rudder_Feedback", "r");
 	if(file != 0)
 	{
-  		fscanf (file, "%f", &Rudder_Feedback);
+  		fscanf (file, "%d", &Rudder_Feedback);
 		fclose (file);
 	}
 	else
