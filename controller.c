@@ -3,15 +3,22 @@
  *
  */
 
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <unistd.h>
+
+#define PI 3.14159265
+#define GAIN_P 1
+#define GAIN_I 0
 
 FILE* file;
 float Rate,Heading,Deviation,Variation,Yaw,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle;
 float Point_Start_Lat, Point_Start_Lon, Point_End_Lat, Point_End_Lon;
 float Manual_Control_Rudder, Manual_Control_Sail;
 float Navigation_System_Rudder, Navigation_System_Sail;
+float integratorSum=0;
 int Rudder_Feedback, Rudder_Desired_Angle;
 int Navigation_System, Manual_Control;
 
@@ -172,7 +179,7 @@ void read_rudder_feedback()
  */
 void move_rudder(int angle)
 {
-	file = fopen("Navigation_System_Rudder","w");
+	file = fopen("/tmp/sailboat/Navigation_System_Rudder","w");
 	fprintf(file,"%d",angle);
 	fclose(file);
 }
@@ -200,15 +207,42 @@ void read_coordinates()
 
 
 /*
- *	Calulate the desired RUDDER ANGLE position based on the following global variables:
- *		- Direction of the Target Point
- *		- Current Heading
+ *	GUIDANCE + RUDDER PID CONTROLLER
+ *	
+ *	GUIDANCE:
+ *		- Calculate the Target Heading based on the target position and current position
+ *	RUDDER PID CONTROLLER:
+ *		- Calulate the desired RUDDER ANGLE position based on the Target Heading and Current Heading
+ *
  *	The result ia a rounded value of the angle stored in the [Rudder_Desired_Angle] global variable
  */
 void calculate_rudder_angle()
 {
-	// do the magic;
-	Rudder_Desired_Angle=0;
+	// GUIDANCE, calculate Target Heading:
+		float dx, dy, targetHeading;
+		dx=Point_End_Lon-Longitude;
+		dy=Point_End_Lat-Latitude;
+		// targetHeading range is -180(to the left) to +180(to the right)
+		targetHeading = atan2(dx,dy) * 180 / PI;
+
+	
+	// RUDDER PID CONTROLLER, calculate Rudder angle:
+		float dHeading, pValue, integralValue;	
+		dHeading = targetHeading - Heading;
+		// WARNING: calculating the dHeading consider the jump from 0 to 359 degrees
+		// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
+
+		// P controller
+		pValue = GAIN_P * dHeading;
+
+		// Integration part
+		// integratorSum = dHeading + integratorSum; // WARNING: this has to be stopped growing somewhen
+		integralValue = GAIN_I * integratorSum;
+		
+		// result
+		Rudder_Desired_Angle = round(pValue + integralValue);
+		// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
+		// fprintf(stdout,"Rudder_Desired_Angle: %d\n\n",Rudder_Desired_Angle);
 }
 
 
