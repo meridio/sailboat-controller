@@ -49,7 +49,7 @@ int main() {
 		//write to system("echo 0 > /tmp/sailboat/Rudder_Feedback");
 
 		//do convertion adc -> angle
-		adc_value = 4090; //2048;
+		adc_value = 2048;
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
 		fprintf(stdout, "actual_angle: %d\n", actual_angle);
 		//decide direction of movement
@@ -59,7 +59,7 @@ int main() {
 			delta_angle = -delta_angle;
 		fprintf(stdout, "ABS delta angle %d\n", delta_angle);
 
-		if ((actual_angle - desired_angle) <= ERROR_MARGIEN) {
+		if (delta_angle > ERROR_MARGIEN) {
 			//set outputs
 			if (actual_angle < desired_angle) {
 				if (direction != RIGHT) {
@@ -88,7 +88,9 @@ int main() {
 			}
 
 			//ramp PWM up slowly
-			if (duty != 100) {
+			if (direction == NEUTRAL) {
+				/*set pwm duty = duty variable*/
+			} else if (duty != 100 && direction != NEUTRAL) {
 				for (duty = 0; duty < 90; duty += 20) {
 					/*set pwm duty = duty variable*/
 					fprintf(stdout, "duty: %d\n", duty);
@@ -119,8 +121,31 @@ void initFiles() {
 }
 
 void init_io() {
-//configure io and pwm
+	//configure io and pwm
 	fprintf(stdout, "IO init\n");
+	/*
+	 * 	2 pwm's
+	 * 	-connected to EN-pins
+	 * 	1 adc
+	 * 	-connected to rudder feedback
+	 * 	2 inputs from hall module (LA36)
+	 * 	-hall A and B ___ THIS NEED TO BE IN A KERNEL MODULE! fast signals!
+	 * 	4 outputs for dual-h-bridge
+	 * 	-RPWM, LPWM for A and B motor
+	*/
+	//guide used: wiki.gumstix.org//index,php?title=GPIO
+	//the most faulty non-informative-ish wiki guide
+	/*
+	 * 
+	 */
+	system("devmem2 0x480021c8 h 0x10c"); //GPIO 171
+	system("devmem2 0x480021ca h 0x10c"); //GPIO 172
+	//system("devmem2 0x480021cc h 0x10c"); //GPIO 173
+	//system("devmem2 0x480021ce h 0x10c"); //GPIO 174
+	system("echo 171 > /sys/class/gpio/export");
+	system("echo 172 > /sys/class/gpio/export");
+	system("echo out > /sys/class/gpio/gpio171/direction");
+	system("echo out > /sys/class/gpio/gpio172/direction");
 
 }
 
