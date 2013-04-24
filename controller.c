@@ -214,11 +214,15 @@ void calculate_rudder_angle()
 		pValue = GAIN_P * dHeading;
 
 		// Integration part
-		// integratorSum = dHeading + integratorSum; // WARNING: this has to be stopped growing somewhen
+		// integratorSum = dHeading + integratorSum; // WARNING: this keeps on growing at every loop
 		integralValue = GAIN_I * integratorSum;
 		
 		// result
+
+		//if ( dHeading < dHeading_max && rateofturn < rateofturn_max )  // not sure about the syntax
+		//{
 		Rudder_Desired_Angle = round(pValue + integralValue);
+		//}
 		// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
 		// fprintf(stdout,"Rudder_Desired_Angle: %d\n\n",Rudder_Desired_Angle);
 }
