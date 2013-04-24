@@ -322,7 +322,7 @@ static void messageReceived(const unsigned char * msg, size_t msgLen)
 	command = msg[0];
 	payloadLen = msg[1];
 
-	fprintf(stderr,"message command = %02x len = %u\n", command, payloadLen);
+	//fprintf(stderr,"message command = %02x len = %u\n", command, payloadLen);
 
 	if (command == N2K_MSG_RECEIVED)
 	{
