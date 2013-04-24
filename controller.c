@@ -218,7 +218,6 @@ void calculate_rudder_angle()
 		integralValue = GAIN_I * integratorSum;
 		
 		// result
-
 		//if ( dHeading < dHeading_max && rateofturn < rateofturn_max )  // not sure about the syntax
 		//{
 		Rudder_Desired_Angle = round(pValue + integralValue);
