@@ -116,8 +116,8 @@ int main() {
 void initFiles() {
 	fprintf(stdout, "file init\n");
 	system("mkdir /tmp/actuators");
-	system("echo 0 > /tmp/actuators/rudder_angle");
 	system("echo 0 > /tmp/sailboat/Rudder_Feedback");
+	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
 }
 
 void init_io() {
@@ -152,7 +152,7 @@ void init_io() {
 void read_desired_rudder_angle_values() {
 	fprintf(stdout, "reading desired angle\n");
 
-	file = fopen("/tmp/actuators/rudder_angle", "r");
+	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "r");
 	fscanf(file, "%d", &desired_angle);
 	fclose(file);
 
