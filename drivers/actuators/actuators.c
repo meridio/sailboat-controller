@@ -27,12 +27,13 @@ enum directions {
 int direction = NEUTRAL;
 
 #define 	CONVERTION_VALUE 	0.1		// Needs to be calibrated!
-#define 	FEEDBACK_CENTER 	2048 	// <-- 4096/2
+#define 	FEEDBACK_CENTER 	240 	// <-- 4096/2
 #define 	ERROR_MARGIEN 		5
 
 void init_io();
 void initFiles();
 void read_desired_rudder_angle_values();
+void sleep_ms();
 
 int main() {
 
@@ -45,13 +46,15 @@ int main() {
 		//read from ADC
 		/*ADC READ*/
 		fprintf(stdout, "adc reading\n");
-		//adc_value = ???
-		//write to system("echo 0 > /tmp/sailboat/Rudder_Feedback");
+		file = fopen("/sys/class/hwmon/hwmon0/device/in3_input", "r");
+		fscanf(file, "%d", &adc_value);
+		fclose(file);
 
 		//do convertion adc -> angle
-		adc_value = 2048;
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
 		fprintf(stdout, "actual_angle: %d\n", actual_angle);
+		//write to disk
+//MAKE STUFF HERE FOR GUI
 		//decide direction of movement
 
 		int delta_angle = actual_angle - desired_angle;
@@ -66,23 +69,35 @@ int main() {
 					direction = RIGHT;
 					duty = 0;
 				}
-
 				/*L bridge high*/
 				/*R bridge low*/
+				system("echo 0 > /sys/class/gpio/gpio171/value");
+				system("echo 1 > /sys/class/gpio/gpio172/value");
+
 				fprintf(stdout, "actual_angle < desired_angle\n");
 			} else if (actual_angle > desired_angle) {
 				if (direction != LEFT) {
 					direction = LEFT;
 					duty = 0;
+					system("echo 0 > /dev/pwm11");
 				}
 				/*L bridge low*/
 				/*R bridge high*/
+				system("echo 1 > /sys/class/gpio/gpio171/value");
+				system("echo 0 > /sys/class/gpio/gpio172/value");
+
 				fprintf(stdout, "actual_angle > desired_angle\n");
 			} else {
 				fprintf(stdout, "actual_angle = desired_angle!!!\n");
 				if (direction != NEUTRAL) {
 					direction = NEUTRAL;
 					duty = 0;
+					//system("echo 0 > /dev/pwm11");
+					fprintf(stdout, "duty: %d\n", duty);
+
+					file = fopen("/dev/pwm11", "w");
+					fprintf(file, "%d", duty);
+					fclose(file);
 				}
 
 			}
@@ -90,21 +105,35 @@ int main() {
 			//ramp PWM up slowly
 			if (direction == NEUTRAL) {
 				/*set pwm duty = duty variable*/
-			} else if (duty != 100 && direction != NEUTRAL) {
-				for (duty = 0; duty < 90; duty += 20) {
+			} else if (duty != 90 && direction != NEUTRAL) {
+				duty = 0;
+				while (duty < 90) {
 					/*set pwm duty = duty variable*/
+					duty += 10;
 					fprintf(stdout, "duty: %d\n", duty);
-					sleep(1);
+
+					file = fopen("/dev/pwm11", "w");
+					fprintf(file, "%d", duty);
+					fclose(file);
+
+					sleep_ms(200);
 				}
 			}
 		} else {
 			//set outputs low/high?
 			/*PWM duty = 0*/
-			fprintf(stdout, "else\n");
+			fprintf(stdout, "delta angle < ERROR MARGIEN\n");
+			duty = 0;
+			fprintf(stdout, "duty: %d\n", duty);
+
+			file = fopen("/dev/pwm11", "w");
+			fprintf(file, "%d", duty);
+			fclose(file);
+
 		}
 
 		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n");
-		sleep(5);
+		sleep(1);
 
 	}
 	return 0;
@@ -132,10 +161,10 @@ void init_io() {
 	 * 	-hall A and B ___ THIS NEED TO BE IN A KERNEL MODULE! fast signals!
 	 * 	4 outputs for dual-h-bridge
 	 * 	-RPWM, LPWM for A and B motor
-	*/
+	 */
 	//guide used: wiki.gumstix.org//index,php?title=GPIO
 	//the most faulty non-informative-ish wiki guide
-	/*
+	/*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
 	 * 
 	 */
 	system("devmem2 0x480021c8 h 0x10c"); //GPIO 171
@@ -146,6 +175,9 @@ void init_io() {
 	system("echo 172 > /sys/class/gpio/export");
 	system("echo out > /sys/class/gpio/gpio171/direction");
 	system("echo out > /sys/class/gpio/gpio172/direction");
+
+	//install pwm module
+	system("insmod pwm.ko");
 
 }
 
@@ -159,3 +191,7 @@ void read_desired_rudder_angle_values() {
 	fprintf(stdout, "desired angle: %d\n", desired_angle);
 }
 
+void sleep_ms(int ms) {
+	usleep(ms * 1000); //convert to microseconds
+	return;
+}
