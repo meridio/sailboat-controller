@@ -20,6 +20,8 @@ int desired_angle = 0;
 int adc_value = 0; //big enough ?
 int actual_angle = 0;
 int duty = 0;
+int write_delay = 0;
+
 FILE* file;
 enum directions {
 	RIGHT, LEFT, NEUTRAL
@@ -54,7 +56,14 @@ int main() {
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
 		fprintf(stdout, "actual_angle: %d\n", actual_angle);
 		//write to disk
-//MAKE STUFF HERE FOR GUI
+		if (write_delay > 5) {
+			write_delay = 0;
+			file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
+			fprintf(file, "%d", actual_angle);
+			fclose(file);
+		}
+		else write_delay++;
+
 		//decide direction of movement
 
 		int delta_angle = actual_angle - desired_angle;
@@ -105,9 +114,9 @@ int main() {
 			//ramp PWM up slowly
 			if (direction == NEUTRAL) {
 				/*set pwm duty = duty variable*/
-			} else if (duty != 90 && direction != NEUTRAL) {
+			} else if (duty != 60 && direction != NEUTRAL) {
 				duty = 0;
-				while (duty < 90) {
+				while (duty < 60) {
 					/*set pwm duty = duty variable*/
 					duty += 10;
 					fprintf(stdout, "duty: %d\n", duty);
@@ -116,7 +125,7 @@ int main() {
 					fprintf(file, "%d", duty);
 					fclose(file);
 
-					sleep_ms(200);
+					sleep_ms(100);
 				}
 			}
 		} else {
@@ -133,7 +142,7 @@ int main() {
 		}
 
 		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n");
-		sleep(1);
+		sleep_ms(300);
 
 	}
 	return 0;
