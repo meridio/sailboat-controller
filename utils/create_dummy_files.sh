@@ -1,7 +1,7 @@
 #!/bin/bash
 
-mkdir /tmp/u200
-mkdir /tmp/sailboat
+mkdir -p /tmp/u200
+mkdir -p /tmp/sailboat
 
 
 echo 0 > /tmp/sailboat/Navigation_System

@@ -53,6 +53,7 @@ int main(int argc, char ** argv) {
 
 			// Move the rudder to the desired position
 			move_rudder(Manual_Control_Rudder);
+			printf("Rudder desired angle: %f \n",Manual_Control_Rudder);
 
 		} else {
 
@@ -70,6 +71,7 @@ int main(int argc, char ** argv) {
 
 				// Move the rudder to the desired angle
 				move_rudder(Rudder_Desired_Angle);
+				printf("Rudder desired angle: %d \n",Rudder_Desired_Angle);
 
 				// If the desired point is reached (20m tollerance), switch the coordinates and come back home
 				// calculate_distance();
@@ -92,7 +94,7 @@ int main(int argc, char ** argv) {
  *	Navigation system starts in IDLE mode, waiting for target point coordinates
  */
 void initfiles() {
-	system("mkdir /tmp/sailboat");
+	system("mkdir -p /tmp/sailboat");
 
 	system("echo 0 > /tmp/sailboat/Navigation_System");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");

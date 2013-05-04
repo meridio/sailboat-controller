@@ -16,7 +16,7 @@ https://github.com/canboat/canboat.git
 #include "u200.h"
 
 // read
-static int  debug = 1;
+static int  debug = 0;
 static bool isFile;
 static long timeout = 0;
 static unsigned char NGT_STARTUP_SEQ[] = { 0x11 , 0x02 , 0x00 };
@@ -31,7 +31,7 @@ static int  readNGT1(int handle);
 static void readNGT1Byte(unsigned char c);
 static void messageReceived(const unsigned char * msg, size_t msgLen);
 static void n2kMessageReceived(const unsigned char * msg, size_t msgLen);
-static void ngtMessageReceived(const unsigned char * msg, size_t msgLen);
+//static void ngtMessageReceived(const unsigned char * msg, size_t msgLen);
 
 // decode
 DevicePackets * device[256];
@@ -64,13 +64,32 @@ void writeondisk();
 int main(int argc, char ** argv)
 {
 	int handle;
-	char * device = argv[1];
+	char * device = 0;
 	struct termios attr;
 	struct stat statbuf;
 
-	if (debug) fprintf(stderr, "Opening %s\n", device);
+	while (argc > 1)
+  	{
+		if (strcasecmp(argv[1], "-d") == 0)
+		{
+		  debug = 1;
+		}
+		else if (!device)
+		{
+		  device = argv[1];
+		}
+		else
+		{
+		  device = 0;
+		  break;
+		}
+		argc--;
+		argv++;
+	}
+
+	printf("-> Opening %s device..\n", device);
 	handle = open(device, O_RDWR | O_NOCTTY);
-	if (debug) fprintf(stderr, "fd = %d\n", handle);
+	if (debug) printf("fd = %d\n", handle);
 	if (handle < 0)
 	{
 		fprintf(stderr, "Cannot open NGT-1-A device %s\n", device);
@@ -115,8 +134,10 @@ int main(int argc, char ** argv)
 		timer_last[i] = timer_curr[i]-3;
 	}	
 
+	printf("-> Initializing Files..\n");
 	initFiles();
 
+	printf("-> U200 process is running..\n\n");
 	for (;;)
 	{
 		unsigned char msg[BUFFER_SIZE];
@@ -128,7 +149,7 @@ int main(int argc, char ** argv)
 		{
 			if (!readNGT1(handle))
 			{
-				if (debug) fprintf(stdout, "DBG_01: loop break\n");
+				if (debug) printf("DBG_01: loop break\n");
 				break;
 			}
 		}
@@ -328,16 +349,17 @@ static void messageReceived(const unsigned char * msg, size_t msgLen)
 	{
 		n2kMessageReceived(msg + 2, payloadLen);
 	}
-	else if (command == NGT_MSG_RECEIVED)
-	{
-		ngtMessageReceived(msg + 2, payloadLen);
-	}
+	//else if (command == NGT_MSG_RECEIVED)
+	//{
+		//ngtMessageReceived(msg + 2, payloadLen);
+	//}
 }
 
 
 /*
  * in case of NGT-1 specific message
  */
+/*
 static void ngtMessageReceived(const unsigned char * msg, size_t msgLen)
 {
 	size_t i;
@@ -362,7 +384,7 @@ static void ngtMessageReceived(const unsigned char * msg, size_t msgLen)
 	puts(line);
 	fflush(stdout);
 }
-
+*/
 
 /*
  * In case of a NMEA2000 message
@@ -443,7 +465,9 @@ static char * now(void)
 }
 
 
-
+/*
+ *	DECODE N2K RAW MESSAGE
+ */
 void msgdec(char * msg) 
 {
 	int r;
@@ -469,7 +493,7 @@ void msgdec(char * msg)
     );
 
 	if (r < 5)	{
-		fprintf(stdout, "Error reading message, scanned [%u] from [%s]", r, msg);
+		fprintf(stderr, "Error reading message, scanned [%u] from [%s]", r, msg);
 		return;
 	}
 
@@ -479,7 +503,7 @@ void msgdec(char * msg)
 	}
 
 	if (!p) {
-		fprintf(stdout, "Error reading message, scanned [%zu] bytes from [%s]", p - msg, msg);
+		fprintf(stderr, "Error reading message, scanned [%zu] bytes from [%s]", p - msg, msg);
 		return;
 	}
   
@@ -488,7 +512,7 @@ void msgdec(char * msg)
 	for (i = 0; i < len; i++)
 	{
 		if (scanHex(&p, &m.data[i])) {
-			fprintf(stdout,"Error(1) reading message\n");
+			fprintf(stderr,"Error(1) reading message\n");
 			continue;
 		}
 		if (i < len)
@@ -575,7 +599,7 @@ void printPacket(size_t index, RawMessage * msg)
 		device[msg->src] = calloc(1, sizeof(DevicePackets));
 		if (!device[msg->src])
 		{
-			fprintf(stdout, "Error: Out of memory\n");
+			fprintf(stderr, "Error: (1) Out of memory\n");
 			removefiles();
 			exit(1);
 		}
@@ -590,7 +614,7 @@ void printPacket(size_t index, RawMessage * msg)
 		packet->data = malloc(packet->allocSize);
 		if (!packet->data)
 		{
-			fprintf(stdout, "Out of memory\n");
+			fprintf(stderr, "Error: (2) Out of memory\n");
 			removefiles();
 			exit(1);
 		}
@@ -606,7 +630,7 @@ void printPacket(size_t index, RawMessage * msg)
 			packet->data = realloc(packet->data, msg->len);
 			if (!packet->data)
 			{
-				fprintf(stdout, "Out of memory\n");
+				fprintf(stderr, "Error: (3) Out of memory\n");
 				removefiles();
 				exit(1);
 			}
@@ -671,7 +695,7 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 	char fieldName[60];
 	bool r;
 	bool matchedFixedField;
-	uint32_t refPgn = 0;
+	//uint32_t refPgn = 0;
 
 	if (!device[msg->src])	{ return false; }
 
@@ -753,10 +777,10 @@ bool printPgn(int index, int subIndex, RawMessage * msg)
 		bits  = min(bytes * 8, bits);
 
 
-		if (strcmp(fieldName, "PGN") == 0)
-		{
-			refPgn = data[0] + (data[1] << 8) + (data[2] << 16);
-		}
+		//if (strcmp(fieldName, "PGN") == 0)
+		//{
+			//refPgn = data[0] + (data[1] << 8) + (data[2] << 16);
+		//}
 
 		if (field.resolution < 0.0)
 		{
@@ -791,8 +815,8 @@ ascii_string:
 				{
 					if (data[k] >= ' ' && data[k] <= '~')
 					{
-						int c = data[k];
-						//fprintf(stdout,"(%c)", c);
+						// int c = data[k];
+						// fprintf(stdout,"(%c)", c);
 					}
 				}
 				//fprintf(stdout,"]\n");
@@ -879,7 +903,8 @@ ascii_string:
 			}
 			else
 			{
-				fprintf(stdout,"Unknown resolution %f for %s\n", field.resolution, fieldName);
+				fprintf(stderr,"Unknown resolution\n");
+				fprintf(stderr,"Unknown resolution %f for %s\n", field.resolution, fieldName);
 			}
 
 		}
@@ -1100,7 +1125,7 @@ static bool printNumber(char * fieldName, Field * field, uint8_t * data, size_t 
  */
 static bool printLatLon(char * name, double resolution, uint8_t * data, size_t bytes)
 {
-	uint64_t absVal;
+	// uint64_t absVal;
 	int64_t value;
 
 	value = 0;
@@ -1120,7 +1145,7 @@ static bool printLatLon(char * name, double resolution, uint8_t * data, size_t b
 	{
 		value /= INT64_C(1000000000);
 	}
-	absVal = (value < 0) ? -value : value;
+	// absVal = (value < 0) ? -value : value;
 
 
 	// DD
@@ -1192,7 +1217,7 @@ void addtolist(char name[], char value[])
  */
 void initFiles(){
 	//system("mkdir /tmp/{127251,127250,127257,129025,129026,130306}");
-	system("mkdir /tmp/u200");
+	system("mkdir -p /tmp/u200");
 
 	system("echo 0 > /tmp/u200/Rate");
 	system("echo 0 > /tmp/u200/Heading");
