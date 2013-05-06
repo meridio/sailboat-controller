@@ -213,6 +213,10 @@ esac
 exit 0
 	<--
 
+*** flag the script as executable
+
+	# chmod +x /etc/init.d/gumstixboot.sh
+
 
 *** register boot script on startup sequances
 

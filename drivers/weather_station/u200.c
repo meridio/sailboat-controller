@@ -92,23 +92,23 @@ int main(int argc, char ** argv)
 	if (debug) printf("fd = %d\n", handle);
 	if (handle < 0)
 	{
-		fprintf(stderr, "Cannot open NGT-1-A device %s\n", device);
+		fprintf(stderr, "ERROR: Cannot open NGT-1-A device %s\n", device);
 		exit(1);
 	}
 	if (fstat(handle, &statbuf) < 0)
 	{
-		fprintf(stderr, "Cannot determine device %s\n", device);
+		fprintf(stderr, "ERROR: Cannot determine device %s\n", device);
 		exit(1);
 	}
 
 	isFile = S_ISREG(statbuf.st_mode);
 	if (isFile)
 	{
-		if (debug) fprintf(stderr, "Device is a normal file, do not set the attributes.\n");
+		if (debug) printf("-> Device is a normal file, do not set the attributes.\n");
 	}
 	else
 	{
-		if (debug) fprintf(stderr, "Device is a serial port, set the attributes.\n");
+		if (debug) printf("-> Device is a serial port, set the attributes.\n");
 
 		memset(&attr, 0, sizeof(attr));
 		cfsetispeed(&attr, B115200);
@@ -121,7 +121,7 @@ int main(int argc, char ** argv)
 		tcflush(handle, TCIFLUSH);
 		tcsetattr(handle, TCSANOW, &attr);
 
-		if (debug) fprintf(stderr, "Device is a serial port, send the startup sequence.\n");
+		if (debug) printf("-> Device is a serial port, send the startup sequence.\n");
 
 		writeMessage(handle, NGT_MSG_SEND, NGT_STARTUP_SEQ, sizeof(NGT_STARTUP_SEQ));
 		sleep(2);
@@ -134,7 +134,7 @@ int main(int argc, char ** argv)
 		timer_last[i] = timer_curr[i]-3;
 	}	
 
-	printf("-> Initializing Files..\n");
+	printf("-> Initializing /tmp files..\n");
 	initFiles();
 
 	printf("-> U200 process is running..\n\n");
@@ -147,15 +147,11 @@ int main(int argc, char ** argv)
 
 		if ((r & FD1_Ready) > 0)
 		{
-			if (!readNGT1(handle))
-			{
-				if (debug) printf("DBG_01: loop break\n");
-				break;
-			}
+			if (!readNGT1(handle))	{ break; }
 		}
 	}
 
-	fprintf(stderr, "Error: u200 process terminated.\n");
+	fprintf(stderr, "ERROR: u200 process terminated.\n");
 	removefiles();
 
 	close(handle);
@@ -429,7 +425,8 @@ static void n2kMessageReceived(const unsigned char * msg, size_t msgLen)
 	}
 
 	/* Send the line with exadecimal values to the decoder */
-	if(	pgn!=262386 && pgn!=130312 && pgn!=130313 && pgn!=130314)
+	//if(	pgn!=262386 && pgn!=130312 && pgn!=130313 && pgn!=130314)
+	if(	pgn==127251 || pgn==127250 || pgn==127257 || pgn==129025 || pgn==129026 || pgn==130306)
 	{
 		msgdec(line);
 	}
@@ -476,6 +473,8 @@ void msgdec(char * msg)
 	unsigned int i;
 	char * p;
 	
+	if (debug) { printf("decoding [%s]..\n",msg); }
+
 	// hmmm.. using RAWFORMAT_FAST by default
 	p = strchr(msg, ',');
 	
@@ -531,11 +530,17 @@ void msgdec(char * msg)
 	m.src  = src;
 	m.len  = len;
 
+	
 	currentPgn=pgn; pos=0;
+	
+	if (debug) { printf("printing CanFormat [pgn: %d]..\n",pgn); }
 	printCanFormat(&m);
+	
+	if (debug) { printf("writing to file..\n"); }
 	writeondisk();
 
 }
+
 
 static int scanHex(char ** p, uint8_t * m)
 {
@@ -579,6 +584,7 @@ bool printCanFormat(RawMessage * msg)
 		}
 	}
 
+	printf("rc printCanFormat: FALSE\n");
 	if (i == ARRAY_SIZE(pgnList)) { printPacket(0, msg); }
 
 	return false;
@@ -1283,29 +1289,30 @@ void writeondisk()
 			||	( currentPgn == 130306 && strcmp(currentList[i].name,"Wind_Angle")==0 && strcmp(currentList[3].value,"True (ground referenced to North)")==0 )		
 		){
 			
-			if (strcmp(currentList[i].name,"Rate") == 0) 	{ k = 0; }
-			if (strcmp(currentList[i].name,"Heading") == 0) { k = 1; }
-			if (strcmp(currentList[i].name,"Deviation") == 0) { k = 2; }
-			if (strcmp(currentList[i].name,"Variation") == 0) { k = 3; }
-			if (strcmp(currentList[i].name,"Yaw") == 0) 	{ k = 4; }
-			if (strcmp(currentList[i].name,"Pitch") == 0) 	{ k = 5; }
-			if (strcmp(currentList[i].name,"Roll") == 0) 	{ k = 6; }
-			if (strcmp(currentList[i].name,"Latitude") == 0) { k = 7; }
-			if (strcmp(currentList[i].name,"Longitude") == 0){ k = 8; }
-			if (strcmp(currentList[i].name,"COG") == 0) 	{ k = 9; }
-			if (strcmp(currentList[i].name,"SOG") == 0) 	{ k = 10; }
-			if (strcmp(currentList[i].name,"Wind_Speed") == 0) { k = 11; }
-			if (strcmp(currentList[i].name,"Wind_Angle") == 0) { k = 12; }
+			if (strcmp(currentList[i].name,"Rate") == 0) 		{ k = 0; }
+			if (strcmp(currentList[i].name,"Heading") == 0) 	{ k = 1; }
+			if (strcmp(currentList[i].name,"Deviation") == 0) 	{ k = 2; }
+			if (strcmp(currentList[i].name,"Variation") == 0) 	{ k = 3; }
+			if (strcmp(currentList[i].name,"Yaw") == 0) 		{ k = 4; }
+			if (strcmp(currentList[i].name,"Pitch") == 0) 		{ k = 5; }
+			if (strcmp(currentList[i].name,"Roll") == 0) 		{ k = 6; }
+			if (strcmp(currentList[i].name,"Latitude") == 0) 	{ k = 7; }
+			if (strcmp(currentList[i].name,"Longitude") == 0)	{ k = 8; }
+			if (strcmp(currentList[i].name,"COG") == 0) 		{ k = 9; }
+			if (strcmp(currentList[i].name,"SOG") == 0) 		{ k = 10; }
+			if (strcmp(currentList[i].name,"Wind_Speed") == 0) 	{ k = 11; }
+			if (strcmp(currentList[i].name,"Wind_Angle") == 0) 	{ k = 12; }
 
 			//update timer for current entry
 			timer_curr[k] = time(NULL);
 
 			//check timer for current entry
 			if (difftime (timer_curr[k],timer_last[k]) >= WRITE_INTERVAL) {
+				
 
 				sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
-				fprintf(stdout,"  %s -> (%s)\n",tmpchar, currentList[i].value);
-
+				if (debug) { printf("      %s -> [%s]\n",tmpchar, currentList[i].value); }
+				
 				// write to file		
 				file = fopen(tmpchar,"w");
 				fprintf(file,"%s",currentList[i].value);
@@ -1315,12 +1322,9 @@ void writeondisk()
 			}
 
 
-			
-
-			
 
 		}
 	}
-	fprintf(stdout,"\n");
+	//fprintf(stdout,"\n");
 }
 
