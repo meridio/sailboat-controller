@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <unistd.h>
+#include <time.h>
+#include <dirent.h>
 
 #define PI 3.14159265
 #define GAIN_P 1
@@ -17,14 +19,13 @@
 #define INTEGRATOR_MAX	0.2
 
 FILE* file;
-float Rate, Heading, Deviation, Variation, Yaw, Pitch, Roll, Latitude,
-		Longitude, COG, SOG, Wind_Speed, Wind_Angle;
+float Rate, Heading, Deviation, Variation, Yaw, Pitch, Roll, Latitude, Longitude, COG, SOG, Wind_Speed, Wind_Angle;
 float Point_Start_Lat, Point_Start_Lon, Point_End_Lat, Point_End_Lon;
-float Manual_Control_Rudder, Manual_Control_Sail;
-float Navigation_System_Rudder, Navigation_System_Sail;
 float integratorSum = 0;
-int Rudder_Desired_Angle;
-int Navigation_System, Manual_Control;
+int   Rudder_Desired_Angle, Manual_Control_Rudder, Manual_Control_Sail;
+int   Navigation_System, Manual_Control;
+int   logEntry = 0;
+char  logfile[50];
 
 void initfiles();
 void check_system_status();
@@ -33,6 +34,7 @@ void read_weather_station();
 void move_rudder(int angle);
 void read_coordinates();
 void calculate_rudder_angle();
+void write_log_file();
 
 int main(int argc, char ** argv) {
 	initfiles();
@@ -40,7 +42,7 @@ int main(int argc, char ** argv) {
 	read_weather_station();
 
 	while (1) {
-
+		
 		check_system_status();
 
 		if (Manual_Control) {
@@ -53,7 +55,7 @@ int main(int argc, char ** argv) {
 
 			// Move the rudder to the desired position
 			move_rudder(Manual_Control_Rudder);
-			printf("Rudder desired angle: %f \n",Manual_Control_Rudder);
+			printf("Rudder desired angle: %d \n",Manual_Control_Rudder);
 
 		} else {
 
@@ -84,6 +86,9 @@ int main(int argc, char ** argv) {
 
 		}
 
+		// log
+		write_log_file();
+
 		sleep(1);
 	}
 	return 0;
@@ -95,6 +100,7 @@ int main(int argc, char ** argv) {
  */
 void initfiles() {
 	system("mkdir -p /tmp/sailboat");
+	system("mkdir -p /var/tmp/sailboat-log/");
 
 	system("echo 0 > /tmp/sailboat/Navigation_System");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
@@ -133,10 +139,10 @@ void check_system_status() {
  */
 void read_manual_control_values() {
 	file = fopen("/tmp/sailboat/Manual_Control_Rudder", "r");
-	fscanf(file, "%f", &Manual_Control_Rudder);
+	fscanf(file, "%d", &Manual_Control_Rudder);
 	fclose(file);
 	file = fopen("/tmp/sailboat/Manual_Control_Sail", "r");
-	fscanf(file, "%f", &Manual_Control_Sail);
+	fscanf(file, "%d", &Manual_Control_Sail);
 	fclose(file);
 }
 
@@ -276,4 +282,66 @@ void read_weather_station() {
 	fscanf(file, "%f", &Wind_Angle);
 	fclose(file);
 
+}
+
+/*
+ *	Save all the variables of the navigation system in a log file in /var/tmp/sailboat-log/
+ *	Create a new log file every 10 minutes
+ */
+void write_log_file() {
+
+	char  logline[1000];
+
+	time_t rawtime;
+	struct tm * timeinfo;
+
+
+	// crate a new file at startup or every 10 minutes
+	if(logEntry==0 || logEntry>600) {
+		
+		//count files in log folder
+		int file_count = 1;
+		DIR * dirp;
+		struct dirent * entry;
+
+		dirp = opendir("/var/tmp/sailboat-log/"); 
+
+		while ((entry = readdir(dirp)) != NULL) {
+			if (entry->d_type == DT_REG) { 
+				 file_count++;
+			}
+		}
+		closedir(dirp);
+
+		// calculate filename
+		sprintf(logfile,"/var/tmp/sailboat-log/logfile_%.4d",file_count);
+
+		// create the new file with a verbose time format as first line
+		time ( &rawtime );
+		timeinfo = localtime ( &rawtime );
+		file = fopen(logfile, "w");
+		fprintf(file, "Local time and date: %s", asctime (timeinfo));
+		fclose(file);
+	
+		logEntry=1;
+	}
+
+
+	// generate CSV log line
+	sprintf(logline, "[%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f]" \
+		, (unsigned)time(NULL) \
+		, Navigation_System \
+		, Manual_Control \
+		, Rudder_Desired_Angle \
+		, Manual_Control_Rudder \
+		, Rate ,Heading ,Deviation ,Variation ,Yaw ,Pitch ,Roll ,Latitude ,Longitude ,COG ,SOG ,Wind_Speed ,Wind_Angle \
+		, Point_Start_Lat ,Point_Start_Lon ,Point_End_Lat ,Point_End_Lon \
+	);
+	
+	// write to file
+	file = fopen(logfile, "a");
+	fprintf(file, "%s\n", logline);
+	fclose(file);
+	
+	logEntry++;
 }
