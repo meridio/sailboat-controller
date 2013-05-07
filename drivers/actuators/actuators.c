@@ -28,8 +28,8 @@ enum directions {
 };
 int direction = NEUTRAL;
 
-#define 	CONVERTION_VALUE 	0.1		// Needs to be calibrated!
-#define 	FEEDBACK_CENTER 	240 	// <-- 4096/2
+#define 	CONVERTION_VALUE 	0.05	// Needs to be calibrated!
+#define 	FEEDBACK_CENTER 	850 	// <-- ~1800/2
 #define 	ERROR_MARGIEN 		5
 
 void init_io();
@@ -61,8 +61,8 @@ int main() {
 			file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
 			fprintf(file, "%d", actual_angle);
 			fclose(file);
-		}
-		else write_delay++;
+		} else
+			write_delay++;
 
 		//decide direction of movement
 
@@ -77,10 +77,11 @@ int main() {
 				if (direction != RIGHT) {
 					direction = RIGHT;
 					duty = 0;
+					fprintf(stdout, "Going RIGHT\n");
 				}
 				/*L bridge high*/
 				/*R bridge low*/
-				system("echo 0 > /sys/class/gpio/gpio171/value");
+				system("echo 1 > /sys/class/gpio/gpio171/value");
 				system("echo 1 > /sys/class/gpio/gpio172/value");
 
 				fprintf(stdout, "actual_angle < desired_angle\n");
@@ -88,12 +89,12 @@ int main() {
 				if (direction != LEFT) {
 					direction = LEFT;
 					duty = 0;
-					system("echo 0 > /dev/pwm11");
+					fprintf(stdout, "Going LEFT\n");
 				}
 				/*L bridge low*/
 				/*R bridge high*/
 				system("echo 1 > /sys/class/gpio/gpio171/value");
-				system("echo 0 > /sys/class/gpio/gpio172/value");
+				system("echo 1 > /sys/class/gpio/gpio172/value");
 
 				fprintf(stdout, "actual_angle > desired_angle\n");
 			} else {
@@ -101,9 +102,13 @@ int main() {
 				if (direction != NEUTRAL) {
 					direction = NEUTRAL;
 					duty = 0;
-					//system("echo 0 > /dev/pwm11");
+					fprintf(stdout, "Going NEUTRAL\n");
+
 					fprintf(stdout, "duty: %d\n", duty);
 
+					file = fopen("/dev/pwm10", "w");
+					fprintf(file, "%d", duty);
+					fclose(file);
 					file = fopen("/dev/pwm11", "w");
 					fprintf(file, "%d", duty);
 					fclose(file);
@@ -114,18 +119,38 @@ int main() {
 			//ramp PWM up slowly
 			if (direction == NEUTRAL) {
 				/*set pwm duty = duty variable*/
-			} else if (duty != 60 && direction != NEUTRAL) {
+			} else if (duty != 90 && direction != NEUTRAL) {
 				duty = 0;
-				while (duty < 60) {
-					/*set pwm duty = duty variable*/
-					duty += 10;
-					fprintf(stdout, "duty: %d\n", duty);
-
+				if (direction == LEFT) {
 					file = fopen("/dev/pwm11", "w");
-					fprintf(file, "%d", duty);
+					fprintf(file, "%d", 0);
 					fclose(file);
+					while (duty < 90) {
+						/*set pwm duty = duty variable*/
+						duty += 10;
+						fprintf(stdout, "duty: %d\n", duty);
 
-					sleep_ms(100);
+						file = fopen("/dev/pwm10", "w");
+						fprintf(file, "%d", duty);
+						fclose(file);
+
+						sleep_ms(70);
+					}
+				} else if (direction == RIGHT) {
+					file = fopen("/dev/pwm10", "w");
+					fprintf(file, "%d", 0);
+					fclose(file);
+					while (duty < 90) {
+						/*set pwm duty = duty variable*/
+						duty += 10;
+						fprintf(stdout, "duty: %d\n", duty);
+
+						file = fopen("/dev/pwm11", "w");
+						fprintf(file, "%d", duty);
+						fclose(file);
+
+						sleep_ms(70);
+					}
 				}
 			}
 		} else {
@@ -136,6 +161,9 @@ int main() {
 			fprintf(stdout, "duty: %d\n", duty);
 
 			file = fopen("/dev/pwm11", "w");
+			fprintf(file, "%d", duty);
+			fclose(file);
+			file = fopen("/dev/pwm10", "w");
 			fprintf(file, "%d", duty);
 			fclose(file);
 
