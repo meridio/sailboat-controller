@@ -60,11 +60,11 @@ INSTALL
 ** install kernel
 	
 	- uImage can be found in arch/arm/boot/ , copy it to the boot partion of the sdcard
+	$ sudo cp /home/mix/SDU/mdb1/01_SETUP_GUMSTIX/image_overo/Gumstix-Overo-Kernel/arch/arm/boot/uImage /media/mix/boot/
 
 ** install modules (check partition name)
 	
-	? depmod
-	# sudo INSTALL_MOD_PATH=/media/rootfs make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- modules_install
+	$ sudo INSTALL_MOD_PATH=/media/mix/rootfs make ARCH=arm CROSS_COMPILE=arm-linux-gnueabi- modules_install
 
 
 --------------------------------------------------------------------------------------

@@ -22,14 +22,14 @@ FORMAT SD CARD
 	(for instance: "/dev/sdb")
 
 
-*** partitioning
+*** partitioning (run the following command twice)
 	$ sudo $MDB1SRCPATH/utils/mkcard.sh /dev/sdb
                                         ========
 
 *** EXTRACT AND INSERT THE SD CARD BACK IN THE READER
 
 
-*** check the partions were succesfully created
+*** check the partions were succesfully created (boot and rootfs)
 	$ sudo fdisk -l /dev/sdb
 
 
@@ -38,42 +38,41 @@ FORMAT SD CARD
 WRITE OVERO IMAGE ON SD CARD
 --------------------------------------------------------------------------------------
 
-*** download images
-	$ 					$MDB1IMGPATH/
+*** download images (stable, August 2011.. more up to date images are available)
+	$ mkdir -p $MDB1IMGPATH/
+	$ cd $MDB1IMGPATH/
+	$ wget http://cumulus.gumstix.org/images/angstrom/factory/2011-08-30-1058/uImage
+	$ wget http://cumulus.gumstix.org/images/angstrom/factory/2011-08-30-1058/u-boot.bin
+	$ wget http://cumulus.gumstix.org/images/angstrom/factory/2011-08-30-1058/MLO
+	$ wget http://cumulus.gumstix.org/images/angstrom/factory/2011-08-30-1058/mlo-updated
+	$ wget http://cumulus.gumstix.org/images/angstrom/factory/2011-08-30-1058/omap3-desktop-nand-image-overo-booted.tar.bz2
 
-*** extract images
-	$
 
-*** inserisci sd card (if not yet in the reader)
-
-*** check partition names
+*** check sdcard partition names
 	$ mount
 	(for instance: "/media/yourname/boot/" and "/media/yourname/rootfs/")
 
 
 *** write files to BOOT partition
 
+	$ cd $MDB1IMGPATH/
 	$ sudo rm /media/mix/boot/*
-	$ sudo cp MLO /media/mix/boot/MLO
+	$ sudo cp mlo-updated /media/mix/boot/MLO
 	$ sudo cp u-boot.bin /media/mix/boot/u-boot.bin
 	$ sudo cp uImage /media/mix/boot/uImage
 
 
 *** write files to ROOTFS partition
 
-	$ sudo rm -r /media/mix/Angstrom/*
-	| sudo rm -r /media/mix/rootfs/*
-
-	$ sudo tar xaf omap3-desktop-nand-image-overo-booted.tar.bz2 -C /media/mix/Angstrom
-	| sudo tar xaf omap3-desktop-nand-image-overo-booted.tar.bz2 -C /media/mix/rootfs
+	$ sudo rm -r /media/mix/rootfs/*
+	$ sudo tar xaf omap3-desktop-nand-image-overo-booted.tar.bz2 -C /media/mix/rootfs
 	
 
-*** unmount
+*** flush cache and unmount
 
 	$ sync
 	$ sudo umount /media/mix/boot
-	$ sudo umount /media/mix/Angstrom
-	| sudo umount /media/mix/rootfs
+	$ sudo umount /media/mix/rootfs
 
 
 *** extract sd card
@@ -83,7 +82,7 @@ WRITE OVERO IMAGE ON SD CARD
 SETUP WIFI
 --------------------------------------------------------------------------------------
 
-*** Insert the sdcard in Gumstis, DO NOT power up yet
+*** Insert the sdcard in the Gumstix, DO NOT power up yet
 
 *** connect USB console cable and set-up a serial connection
 
@@ -190,29 +189,33 @@ BOOT SCRIPT
 
 	# nano /etc/init.d/gumstixboot.sh
 	--> 
-		#! /bin/sh
+#! /bin/sh
 
-		# Carry out specific functions when asked to by the system
-		case "$1" in
-		  start)
-			echo "Starting gumstixboot.sh.."
-			# /etc/init.d/NetworkManager stop
-			echo "GUMSTIX BOOTSCRIPT: start dhcp server.."
-			udhcpd /etc/udhcpd.conf
-			echo "GUMSTIX BOOTSCRIPT: modprobe ftdi_sio.."
-			modprobe ftdi_sio vendor=0x0403 product=0xd9aa
-			;;
-		  stop)
-			echo "Stopping script gumstixboot"
-			;;
-		  *)
-			echo "Usage: /etc/init.d/gumstixboot {start|stop}"
-			exit 1
-			;;
-		esac
+# Carry out specific functions when asked to by the system
+case "$1" in
+  start)
+	echo "Starting gumstixboot.sh.."
+	# /etc/init.d/NetworkManager stop
+	echo "GUMSTIX BOOTSCRIPT: start dhcp server.."
+	udhcpd /etc/udhcpd.conf
+	echo "GUMSTIX BOOTSCRIPT: modprobe ftdi_sio.."
+	modprobe ftdi_sio vendor=0x0403 product=0xd9aa
+	;;
+  stop)
+	echo "Stopping script gumstixboot"
+	;;
+  *)
+	echo "Usage: /etc/init.d/gumstixboot {start|stop}"
+	exit 1
+	;;
+esac
 
-		exit 0
+exit 0
 	<--
+
+*** flag the script as executable
+
+	# chmod +x /etc/init.d/gumstixboot.sh
 
 
 *** register boot script on startup sequances
