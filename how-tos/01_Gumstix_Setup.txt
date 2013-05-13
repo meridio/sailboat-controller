@@ -196,10 +196,11 @@ case "$1" in
   start)
 	echo "Starting gumstixboot.sh.."
 	# /etc/init.d/NetworkManager stop
-	echo "GUMSTIX BOOTSCRIPT: start dhcp server.."
-	udhcpd /etc/udhcpd.conf
 	echo "GUMSTIX BOOTSCRIPT: modprobe ftdi_sio.."
 	modprobe ftdi_sio vendor=0x0403 product=0xd9aa
+	echo "GUMSTIX BOOTSCRIPT: waiting for WLAN1 to start dhcp server.."
+	sleep 110
+	udhcpd /etc/udhcpd.conf
 	;;
   stop)
 	echo "Stopping script gumstixboot"

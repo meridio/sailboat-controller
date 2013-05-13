@@ -1,0 +1,66 @@
+
+
+-- QtSDK 1.2.1 (with Qt 4.8) has to be installed
+	(64 or 32 bit, downloaded from Nokia developer website: 
+	http://www.developer.nokia.com/info/sw.nokia.com/id/da8df288-e615-443d-be5c-00c8a72435f8/Qt_SDK.html)
+
+
+-- get Qt Mobility source code in order to install the Location libraries (maps) for Desktop applications --
+
+	$ cd /tmp/
+	$ git clone git://gitorious.org/qt-mobility/qt-mobility.git
+	$ cd qt-mobility
+
+
+-- Edit PATH environmental variable --
+
+	$ PATH=/home/mix/QtSDK/Desktop/Qt/4.8.1/gcc/bin:$PATH
+
+	
+-- Configure QtMobility --
+
+	$ ./configure -modules location 
+	(if you get any compiling error, install the following dependencies and retry)
+
+
+-- Install dependencies (only in case of compiling errors of the previous step) --
+
+	<first attempt, then try the configure command again> 
+	$ sudo apt-get install libglui-dev libasound2-dev libxv-dev libxv1 libxvmc-dev libxvmc1 libxvidcore4
+
+	<second attempt, then try the configure command again> 
+	$ sudo apt-get install libasound2-dev libbluetooth-dev libgstreamer0.10-dev libgstreamer-plugins-base0.10-dev network-manager-dev libxv-dev gstreamer-tools gstreamer0.10-plugins-base gstreamer0.10-ffmpeg w32codecs ubuntu-restricted-extras gstreamer0.10-plugins-good freeglut3-dev
+	
+	<third attempt>
+	$ sudo apt-get install gstreamer0.10-x
+	$ sudo apt-get install gstreamer0.10-plugins-base
+	$ sudo apt-get install gstreamer0.10-plugins-good
+	$ sudo apt-get install gstreamer0.10-plugins-bad
+	$ sudo apt-get install gstreamer0.10-plugins-bad-multiverse
+	$ sudo apt-get install gstreamer0.10-plugins-ugly
+	$ sudo apt-get install gstreamer0.10-ffmpeg
+	$ sudo apt-get install libgstreamer0.10-dev
+	$ sudo apt-get install libgstreamer-plugins-base0.10-dev
+	$ sudo apt-get install libgst-dev
+	$ sudo apt-get install gstreamer0.10-alsa
+	$ sudo apt-get install gstreamer0.10-pulseaudio
+
+
+-- compile and install Qt Mobility libraries --
+
+	$ make
+	$ sudo make install
+
+
+-- Edit LD_LIBRARY_PATH environment variables --
+
+	$ nano ~/.profile
+		> LD_LIBRARY_PATH=/home/mix/qt-mobility/lib:$LD_LIBRARY_PATH
+		> export LD_LIBRARY_PATH
+
+
+
+
+
+
+

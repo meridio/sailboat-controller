@@ -1,0 +1,11 @@
+[Desktop Entry]
+Encoding=UTF-8
+Version=1.0
+Type=Application
+Terminal=false
+Name=mdb1_qtproject
+Exec=/usr/bin/single-instance /opt/mdb1_qtproject/bin/mdb1_qtproject
+Icon=/usr/share/icons/hicolor/80x80/apps/mdb1_qtproject80.png
+X-Window-Icon=
+X-HildonDesk-ShowInToolbar=true
+X-Osso-Type=application/x-executable

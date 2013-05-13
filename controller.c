@@ -192,10 +192,11 @@ void calculate_rudder_angle() {
 	dy = Point_End_Lat - Latitude;
 	// targetHeading range is -180(to the left) to +180(to the right)
 	targetHeading = atan2(dx, dy) * 180 / PI;
+	
 
 	// RUDDER PID CONTROLLER, calculate Rudder angle:
 	float dHeading, pValue, integralValue;
-	dHeading = targetHeading - Heading;
+	dHeading = targetHeading - Heading; // in degrees
 	// WARNING: calculating the dHeading consider the jump from 0 to 359 degrees
 	// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
 
@@ -203,9 +204,7 @@ void calculate_rudder_angle() {
 	pValue = GAIN_P * dHeading;
 
 	// Integration part
-	// integratorSum = dHeading + integratorSum; // WARNING: this keeps on growing at every loop
-
-	//The following checks, will keep integratorSum within -0.2 and 0.2
+	// The following checks, will keep integratorSum within -0.2 and 0.2
 	if (integratorSum < -INTEGRATOR_MAX && dHeading > 0) {
 		integratorSum = dHeading + integratorSum;
 	} else if (integratorSum > INTEGRATOR_MAX && dHeading < 0) {
@@ -216,7 +215,7 @@ void calculate_rudder_angle() {
 	integralValue = GAIN_I * integratorSum;
 
 	// result
-	if (dHeading > dHEADING_MAX && Rate > RATEOFTURN_MAX) // Limit control statement
+	if (abs(dHeading) > dHEADING_MAX && abs(Rate) > RATEOFTURN_MAX) // Limit control statement
 			{
 		Rudder_Desired_Angle = round(pValue + integralValue);
 	}
@@ -290,11 +289,10 @@ void read_weather_station() {
  */
 void write_log_file() {
 
-	char  logline[1000];
+	char  logline[500];
 
 	time_t rawtime;
 	struct tm * timeinfo;
-
 
 	// crate a new file at startup or every 10 minutes
 	if(logEntry==0 || logEntry>600) {
@@ -326,9 +324,8 @@ void write_log_file() {
 		logEntry=1;
 	}
 
-
 	// generate CSV log line
-	sprintf(logline, "[%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f]" \
+	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f" \
 		, (unsigned)time(NULL) \
 		, Navigation_System \
 		, Manual_Control \
