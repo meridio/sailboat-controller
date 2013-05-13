@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <dirent.h>
+#include <complex.h>
 
 #define PI 3.14159265
 #define GAIN_P 1
@@ -186,15 +187,94 @@ void read_coordinates() {
  *	The result ia a rounded value of the angle stored in the [Rudder_Desired_Angle] global variable
  */
 void calculate_rudder_angle() {
+
+	// ------------------------------------
 	// GUIDANCE, calculate Target Heading:
+	// ------------------------------------
+
+	// targetHeading range is -180(to the left) to +180(to the right)
+/*
+	// GUIDANCE v1: point to target direction
 	float dx, dy, targetHeading;
 	dx = Point_End_Lon - Longitude;
 	dy = Point_End_Lat - Latitude;
-	// targetHeading range is -180(to the left) to +180(to the right)
 	targetHeading = atan2(dx, dy) * 180 / PI;
-	
+*/
 
+	// GUIDANCE v2: jibe and tack capable
+	float x, y, targetHeading, theta_wind;
+	float _Complex X, X_T, X_T_g, X_g, Xl, Xr, theta_LOS, theta_l, theta_r; //float?? //X_T??
+
+	x=Latitude;
+	y=Longitude;
+	theta_wind=Wind_Angle;
+
+	// complex notation for x,y position
+	X = x + 1I*y;
+
+	// ** Turning matrix **
+	// The calculations in the guidance system are done assuming constant wind
+	// from above. To make this system work, we need to 'turn' it according to
+	// the winddirection. It is like looking on a map, you have to find the
+	// north before reading it.
+
+	// Using theta_wind to transfer X_T. Here theta_wind is expected to be zero
+	// when coming from north, going clockwise in radians.
+	X_T_g = cexp(1I*((X_T*180/PI)+theta_wind))*cabs(X_T);
+	// 'g' for guidance frame.
+	X_g = cexp(1I*((X*180/PI)+theta_wind))*cabs(X);
+
+	// deadzone limit direction
+	Xl = -2 + 2*1I;
+	Xr =  2 + 2*1I;
+/*
+	// tacking boundaries
+	int xl = -10;
+	int xr = 10;
+
+	// definition of the different angles
+	theta_LOS = angle(X_T_g - X_g);
+	theta_l = angle(exp(-1I*theta_LOS)*Xl);
+	theta_r = angle(exp(-1I*theta_LOS)*Xr);
+
+	// compute the next theta_d, ie at time t+1
+	// (main algorithm)
+	if s==1 // if stopping signal is sent, then head up agains the wind
+		theta_d1_g= pi/2;
+	else
+		if not(angle(Xr)<=theta_LOS & theta_LOS<=angle(Xl)) 
+		    // if theta_LOS is outside of the deadzone
+		    theta_d1_g = theta_LOS;
+		else
+		    if theta_d == angle(Xl)
+		        if x <= xl 
+		            theta_d1_g = angle(Xr)
+		        else
+		            theta_d1_g = theta_d
+		        end
+		    elseif theta_d == angle(Xr)
+		        if xr <= x 
+		            theta_d1_g = angle(Xl)
+		        else
+		            theta_d1_g = theta_d
+		        end
+		    else
+		        ThetaLOSNorm = [ abs(theta_l) ; abs(theta_r) ];
+		        Xdir = [ Xl ; Xr ]
+		        [~,index_min] = min(ThetaLOSNorm);
+		        theta_d1_g = angle(Xdir(index_min));
+		    end
+		end
+	end
+
+	// Inverse turning matrix
+	theta_d1 = theta_d1_g-theta_wind
+*/
+
+
+	// ----------------------------------------------
 	// RUDDER PID CONTROLLER, calculate Rudder angle:
+	// ----------------------------------------------
 	float dHeading, pValue, integralValue;
 	dHeading = targetHeading - Heading; // in degrees
 	// WARNING: calculating the dHeading consider the jump from 0 to 359 degrees
@@ -222,6 +302,7 @@ void calculate_rudder_angle() {
 	// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
 	// fprintf(stdout,"Rudder_Desired_Angle: %d\n\n",Rudder_Desired_Angle);
 }
+
 
 /*
  *	Read data from the Weather Station
