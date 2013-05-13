@@ -10,6 +10,7 @@ Rectangle {
     height: 600
     focus: true
 
+    property int elapsedSec:0;
 
     Map {
         id: map
@@ -378,7 +379,7 @@ Rectangle {
                 anchors.topMargin: 0
 
                 Text {
-                    id: text2
+                    id: labelDuration
                     x: 32
                     y: 6
                     color: "#c8c8c8"
@@ -387,11 +388,12 @@ Rectangle {
                 }
 
                 Text {
-                    id: text4
+                    id: durationText
                     x: 21
                     y: 23
                     color: "#c8c8c8"
                     text: qsTr("00:00")
+                    horizontalAlignment: Text.AlignHCenter
                     font.pixelSize: 22
                 }
 
@@ -1040,6 +1042,8 @@ Rectangle {
                     myFile.source="/tmp/sailboat/Navigation_System"
                     myFile.write("1");
                     navsys.text="ON"
+
+                    elapsedSec=0;
                 }
              else
                 {
@@ -1301,7 +1305,11 @@ Rectangle {
                 }
 
 
-
+                //STOPWATCH
+                if(startPointMarker.visible) {
+                    elapsedSec=elapsedSec+1;
+                    durationText.text=calcDuration(elapsedSec);
+                }
 
 
             }
@@ -1392,7 +1400,18 @@ Rectangle {
     }
 
 
+    function calcDuration(elap)
+        {
+            var res,min,sec;
+            min=Math.floor(elap / 60);
+            sec=elap - (min * 60);
 
+            if (sec<10) { sec="0"+sec; };
+            if (min<10) { min="0"+min; };
+
+            res=min+":"+sec;
+            return res;
+        }
 
 
     function roundVal(val,pre)
