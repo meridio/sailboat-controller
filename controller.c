@@ -10,10 +10,16 @@
 #include <time.h>
 #include <dirent.h>
 #include <complex.h>
+#include <stdbool.h>
 
 #define PI 3.14159265
 #define GAIN_P 1
 #define GAIN_I 0
+
+#define TACKINGRANGE 	200		//meters
+#define RADIUSACCEPTED	20		//meters
+#define CONVLON			64078	//meters per degree
+#define CONVLAT			110742	//meters per degree
 
 #define RATEOFTURN_MAX	0.1745	//PI/18
 #define dHEADING_MAX	0.6
@@ -22,7 +28,7 @@
 FILE* file;
 float Rate, Heading, Deviation, Variation, Yaw, Pitch, Roll, Latitude, Longitude, COG, SOG, Wind_Speed, Wind_Angle;
 float Point_Start_Lat, Point_Start_Lon, Point_End_Lat, Point_End_Lon;
-float integratorSum = 0;
+float integratorSum=0, theta_d=0;
 int   Rudder_Desired_Angle, Manual_Control_Rudder, Manual_Control_Sail;
 int   Navigation_System, Manual_Control;
 int   logEntry = 0;
@@ -56,7 +62,7 @@ int main(int argc, char ** argv) {
 
 			// Move the rudder to the desired position
 			move_rudder(Manual_Control_Rudder);
-			printf("Rudder desired angle: %d \n",Manual_Control_Rudder);
+			//printf("MANUAL: Rudder desired angle: %d \n",Manual_Control_Rudder);
 
 		} else {
 
@@ -74,7 +80,7 @@ int main(int argc, char ** argv) {
 
 				// Move the rudder to the desired angle
 				move_rudder(Rudder_Desired_Angle);
-				printf("Rudder desired angle: %d \n",Rudder_Desired_Angle);
+				// printf("NAVSYS: Rudder desired angle: %d \n",Rudder_Desired_Angle);
 
 				// If the desired point is reached (20m tollerance), switch the coordinates and come back home
 				// calculate_distance();
@@ -113,6 +119,7 @@ void initfiles() {
 	system("echo 0 > /tmp/sailboat/Point_Start_Lon");
 	system("echo 0 > /tmp/sailboat/Point_End_Lat");
 	system("echo 0 > /tmp/sailboat/Point_End_Lon");
+	system("echo 0 > /tmp/sailboat/Guidance_Heading");
 }
 
 /*
@@ -188,96 +195,147 @@ void read_coordinates() {
  */
 void calculate_rudder_angle() {
 
-	// ------------------------------------
-	// GUIDANCE, calculate Target Heading:
-	// ------------------------------------
+	// ------------------------------------------
+	// GUIDANCE, calculate desired boat heading:
+	// ------------------------------------------
 
-	// targetHeading range is -180(to the left) to +180(to the right)
 /*
-	// GUIDANCE v1: point to target direction
-	float dx, dy, targetHeading;
+	// GUIDANCE v0: dummy solution
+	float dx, dy, guidance_heading;
 	dx = Point_End_Lon - Longitude;
 	dy = Point_End_Lat - Latitude;
-	targetHeading = atan2(dx, dy) * 180 / PI;
+	guidance_heading = atan2(dx, dy) * 180 / PI;
 */
 
-	// GUIDANCE v2: jibe and tack capable
-	float x, y, targetHeading, theta_wind;
-	float _Complex X, X_T, X_T_g, X_g, Xl, Xr, theta_LOS, theta_l, theta_r; //float?? //X_T??
 
-	x=Latitude;
-	y=Longitude;
-	theta_wind=Wind_Angle;
+	// GUIDANCE v1: nogozone and tack capable solution
+	float x, y, startx, starty, endx, endy, theta_wind, theta_d_b, xl, xr;
+	float theta_LOS, theta_l, theta_r, theta_d1, theta_d1_b, guidance_heading;
+	float _Complex X, X0, X_T, Geo_X, Geo_X0, Geo_X_T, X_T_b, X_b, Xl, Xr, Conv;
+	bool inrange;
 
-	// complex notation for x,y position
-	X = x + 1I*y;
+	x=Longitude;
+	y=Latitude;
+	startx=Point_Start_Lon;
+	starty=Point_Start_Lat;
+	endx=Point_End_Lon;
+	endy=Point_End_Lat;
 
-	// ** Turning matrix **
+	theta_wind=Wind_Angle*PI/180;
+
+
+	//Conversion Factor
+	Conv=CONVLON + I*CONVLAT;
+	
+	// complex notation for x,y position of the starting point
+	Geo_X0 = Point_Start_Lon + 1*I*Point_Start_Lat;
+	X0 = 0 + 1*I*0;
+
+	// complex notation for x,y position of the boat
+	Geo_X = x + 1*I*y;
+	X=(Geo_X-Geo_X0);
+	X=creal(X)*CONVLON + I*cimag(X)*CONVLAT;
+
+
+	// complex notation for x,y position of the target point
+	Geo_X_T = Point_End_Lon + 1*I*Point_End_Lat;
+	X_T=(Geo_X_T-Geo_X0);
+	X_T=creal(X_T)*CONVLON + I*cimag(X_T)*CONVLAT;
+
+
+	// ** turning matrix **
 	// The calculations in the guidance system are done assuming constant wind
 	// from above. To make this system work, we need to 'turn' it according to
 	// the winddirection. It is like looking on a map, you have to find the
 	// north before reading it.
-
+	
 	// Using theta_wind to transfer X_T. Here theta_wind is expected to be zero
 	// when coming from north, going clockwise in radians.
-	X_T_g = cexp(1I*((X_T*180/PI)+theta_wind))*cabs(X_T);
-	// 'g' for guidance frame.
-	X_g = cexp(1I*((X*180/PI)+theta_wind))*cabs(X);
+	X_T_b = cexp(1*I*(atan2((endy-starty)*CONVLAT,(endx-startx)*CONVLON)+theta_wind))*cabs(X_T-X0);
+	
+	X_b = cexp(1*I*(atan2((y-starty)*CONVLAT,(x-startx)*CONVLON)+theta_wind))*cabs(X-X0);
+	theta_d_b = theta_d + theta_wind;
+	
+
+	// ** Guidance system **
 
 	// deadzone limit direction
-	Xl = -2 + 2*1I;
-	Xr =  2 + 2*1I;
-/*
+	Xl = -2 + 2*1*I;
+	Xr = 2 + 2*1*I;	
+
 	// tacking boundaries
-	int xl = -10;
-	int xr = 10;
+	xl = -TACKINGRANGE/2;
+	xr = TACKINGRANGE/2;
 
 	// definition of the different angles
-	theta_LOS = angle(X_T_g - X_g);
-	theta_l = angle(exp(-1I*theta_LOS)*Xl);
-	theta_r = angle(exp(-1I*theta_LOS)*Xr);
+	theta_LOS = atan2(cimag(X_T_b)-cimag(X_b),creal(X_T_b)-creal(X_b));
+	theta_l = atan2(cimag(exp(-1*I*theta_LOS)*Xl),creal(cexp(-1*I*theta_LOS)*Xl));
+	theta_r = atan2(cimag(exp(-1*I*theta_LOS)*Xr),creal(cexp(-1*I*theta_LOS)*Xr));
+
+	// stop signal
+	if (cabs(X_T - X) < RADIUSACCEPTED)	{ inrange = true; }
+	else { inrange = false; }
+	
 
 	// compute the next theta_d, ie at time t+1
 	// (main algorithm)
-	if s==1 // if stopping signal is sent, then head up agains the wind
-		theta_d1_g= pi/2;
+	if (inrange) { 			// if stopping signal is sent, then head up agains the wind
+	    theta_d1_b = PI/2;
+		printf(">> debug 1 \n");
+	}
 	else
-		if not(angle(Xr)<=theta_LOS & theta_LOS<=angle(Xl)) 
-		    // if theta_LOS is outside of the deadzone
-		    theta_d1_g = theta_LOS;
+	{
+		printf("\n>> debug 0: [%f][%f] \n",atan2(cimag(Xr),creal(Xr)), theta_LOS);
+		if (!(  atan2(cimag(Xr),creal(Xr))<=theta_LOS  &&  theta_LOS<=atan2(cimag(Xl),creal(Xl))  ))
+		{
+			// if theta_LOS is outside of the deadzone
+			theta_d1_b = theta_LOS;
+			printf(">> debug 2 \n");
+		}
 		else
-		    if theta_d == angle(Xl)
-		        if x <= xl 
-		            theta_d1_g = angle(Xr)
-		        else
-		            theta_d1_g = theta_d
-		        end
-		    elseif theta_d == angle(Xr)
-		        if xr <= x 
-		            theta_d1_g = angle(Xl)
-		        else
-		            theta_d1_g = theta_d
-		        end
-		    else
-		        ThetaLOSNorm = [ abs(theta_l) ; abs(theta_r) ];
-		        Xdir = [ Xl ; Xr ]
-		        [~,index_min] = min(ThetaLOSNorm);
-		        theta_d1_g = angle(Xdir(index_min));
-		    end
-		end
-	end
+		{
+			if (theta_d_b == atan2(creal(Xl),cimag(Xl)))
+			{
+				if (creal(X_b) <= xl) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 3 \n"); }     
+				else { theta_d1_b = theta_d_b; printf(">> debug 4 \n");}
+		    } 
+			else
+			{
+				if ( theta_d_b == atan2(creal(Xr),cimag(Xr)) )
+				{
+					if (xr <= creal(X_b)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 5 \n");}
+					else { theta_d1_b = theta_d_b; printf(">> debug 6 \n");}
+				}
+				else
+				{
+					//ThetaLOSNorm = [ cabs(theta_l) ; cabs(theta_r) ];
+					//Xdir = [ Xl ; Xr ];
+					//index_min = min(ThetaLOSNorm);
+					//theta_d1_b = angle(Xdir(index_min));
+					if(cabs(theta_l) < cabs(theta_r)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 7 \n");}
+					else { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 8 \n");}
+				}
+			}
+		}
+	}
 
 	// Inverse turning matrix
-	theta_d1 = theta_d1_g-theta_wind
-*/
+	theta_d1 = theta_d1_b-theta_wind;
+	guidance_heading = (PI/2 - theta_d1) * 180/PI; 
+
+	// write guidance_heading to file to be displayed in GUI 
+	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
+	fprintf(file, "%4.1f", guidance_heading);
+	fclose(file);
+
+
 
 
 	// ----------------------------------------------
 	// RUDDER PID CONTROLLER, calculate Rudder angle:
 	// ----------------------------------------------
 	float dHeading, pValue, integralValue;
-	dHeading = targetHeading - Heading; // in degrees
-	// WARNING: calculating the dHeading consider the jump from 0 to 359 degrees
+	dHeading = guidance_heading - Heading; // in degrees
 	// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
 
 	// P controller
@@ -296,7 +354,7 @@ void calculate_rudder_angle() {
 
 	// result
 	if (abs(dHeading) > dHEADING_MAX && abs(Rate) > RATEOFTURN_MAX) // Limit control statement
-			{
+	{
 		Rudder_Desired_Angle = round(pValue + integralValue);
 	}
 	// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
