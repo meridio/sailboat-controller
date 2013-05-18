@@ -28,7 +28,7 @@
 FILE* file;
 float Rate, Heading, Deviation, Variation, Yaw, Pitch, Roll, Latitude, Longitude, COG, SOG, Wind_Speed, Wind_Angle;
 float Point_Start_Lat, Point_Start_Lon, Point_End_Lat, Point_End_Lon;
-float integratorSum=0, theta_d=0;
+float integratorSum=0, theta_d=0, Guidance_Heading=0;
 int   Rudder_Desired_Angle, Manual_Control_Rudder, Manual_Control_Sail;
 int   Navigation_System, Manual_Control;
 int   logEntry = 0;
@@ -40,6 +40,7 @@ void read_manual_control_values();
 void read_weather_station();
 void move_rudder(int angle);
 void read_coordinates();
+void guidance();
 void calculate_rudder_angle();
 void write_log_file();
 
@@ -56,6 +57,9 @@ int main(int argc, char ** argv) {
 			// MANUAL CONTROL IS ON
 			// Values for the RUDDER and SAIL positions are received from the User Interface.
 			// Use [Manual_Control_Rudder] and [Manual_Control_Sail] files to control the actuators.
+
+			// Read data from the Weather station: Gps, Wind, Yaw, Roll, Rate of turn, ...
+			read_weather_station();
 
 			// Read desired values set by the Graphical User Interface
 			read_manual_control_values();
@@ -75,7 +79,10 @@ int main(int argc, char ** argv) {
 				// Read START and TARGET point coordinates
 				read_coordinates();
 
-				// Calculate the rudder desired angle based on environmental conditions and target position
+				// Calculate the desired boat heading
+				guidance();
+
+				// Calculate the desired rudder angle
 				calculate_rudder_angle();
 
 				// Move the rudder to the desired angle
@@ -183,21 +190,13 @@ void read_coordinates() {
 	fclose(file);
 }
 
-/*
- *	GUIDANCE + RUDDER PID CONTROLLER
- *	
- *	GUIDANCE:
- *		- Calculate the Target Heading based on the target position and current position
- *	RUDDER PID CONTROLLER:
- *		- Calulate the desired RUDDER ANGLE position based on the Target Heading and Current Heading
- *
- *	The result ia a rounded value of the angle stored in the [Rudder_Desired_Angle] global variable
- */
-void calculate_rudder_angle() {
 
-	// ------------------------------------------
-	// GUIDANCE, calculate desired boat heading:
-	// ------------------------------------------
+/*
+ *	GUIDANCE:
+ *
+ *	Calculate the desired Heading based on the WindDirection, StartPoint, EndPoint and current position
+ */
+void guidance() {
 
 /*
 	// GUIDANCE v0: dummy solution
@@ -210,8 +209,8 @@ void calculate_rudder_angle() {
 
 	// GUIDANCE v1: nogozone and tack capable solution
 	float x, y, startx, starty, endx, endy, theta_wind, theta_d_b, xl, xr;
-	float theta_LOS, theta_l, theta_r, theta_d1, theta_d1_b, guidance_heading;
-	float _Complex X, X0, X_T, Geo_X, Geo_X0, Geo_X_T, X_T_b, X_b, Xl, Xr, Conv;
+	float theta_LOS, theta_l, theta_r, theta_d1, theta_d1_b;
+	float _Complex X, X0, X_T, Geo_X, Geo_X0, Geo_X_T, X_T_b, X_b, Xl, Xr;
 	bool inrange;
 
 	x=Longitude;
@@ -222,10 +221,6 @@ void calculate_rudder_angle() {
 	endy=Point_End_Lat;
 
 	theta_wind=Wind_Angle*PI/180;
-
-
-	//Conversion Factor
-	Conv=CONVLON + I*CONVLAT;
 	
 	// complex notation for x,y position of the starting point
 	Geo_X0 = Point_Start_Lon + 1*I*Point_Start_Lat;
@@ -244,6 +239,7 @@ void calculate_rudder_angle() {
 
 
 	// ** turning matrix **
+
 	// The calculations in the guidance system are done assuming constant wind
 	// from above. To make this system work, we need to 'turn' it according to
 	// the winddirection. It is like looking on a map, you have to find the
@@ -285,7 +281,6 @@ void calculate_rudder_angle() {
 	}
 	else
 	{
-		printf("\n>> debug 0: [%f][%f] \n",atan2(cimag(Xr),creal(Xr)), theta_LOS);
 		if (!(  atan2(cimag(Xr),creal(Xr))<=theta_LOS  &&  theta_LOS<=atan2(cimag(Xl),creal(Xl))  ))
 		{
 			// if theta_LOS is outside of the deadzone
@@ -308,10 +303,6 @@ void calculate_rudder_angle() {
 				}
 				else
 				{
-					//ThetaLOSNorm = [ cabs(theta_l) ; cabs(theta_r) ];
-					//Xdir = [ Xl ; Xr ];
-					//index_min = min(ThetaLOSNorm);
-					//theta_d1_b = angle(Xdir(index_min));
 					if(cabs(theta_l) < cabs(theta_r)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 7 \n");}
 					else { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 8 \n");}
 				}
@@ -321,21 +312,26 @@ void calculate_rudder_angle() {
 
 	// Inverse turning matrix
 	theta_d1 = theta_d1_b-theta_wind;
-	guidance_heading = (PI/2 - theta_d1) * 180/PI; 
+	Guidance_Heading = (PI/2 - theta_d1) * 180/PI; 
 
 	// write guidance_heading to file to be displayed in GUI 
 	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
-	fprintf(file, "%4.1f", guidance_heading);
+	fprintf(file, "%4.1f", Guidance_Heading);
 	fclose(file);
+	
+}
 
 
+/*
+ *	RUDDER PID CONTROLLER:
+ *
+ *	Calulate the desired RUDDER ANGLE position based on the Target Heading and Current Heading.
+ *	The result ia a rounded value of the angle stored in the [Rudder_Desired_Angle] global variable
+ */
+void calculate_rudder_angle() {
 
-
-	// ----------------------------------------------
-	// RUDDER PID CONTROLLER, calculate Rudder angle:
-	// ----------------------------------------------
 	float dHeading, pValue, integralValue;
-	dHeading = guidance_heading - Heading; // in degrees
+	dHeading = Guidance_Heading - Heading; // in degrees
 	// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
 
 	// P controller
@@ -359,6 +355,7 @@ void calculate_rudder_angle() {
 	}
 	// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
 	// fprintf(stdout,"Rudder_Desired_Angle: %d\n\n",Rudder_Desired_Angle);
+
 }
 
 
@@ -464,10 +461,11 @@ void write_log_file() {
 	}
 
 	// generate CSV log line
-	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f" \
+	sprintf(logline, "%u,%d,%d,%4.1f,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f" \
 		, (unsigned)time(NULL) \
 		, Navigation_System \
 		, Manual_Control \
+		, Guidance_Heading \
 		, Rudder_Desired_Angle \
 		, Manual_Control_Rudder \
 		, Rate ,Heading ,Deviation ,Variation ,Yaw ,Pitch ,Roll ,Latitude ,Longitude ,COG ,SOG ,Wind_Speed ,Wind_Angle \
