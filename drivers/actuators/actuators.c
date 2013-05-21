@@ -15,11 +15,12 @@
 /* TO DO
  - Calibrate CONVERTION_VALUE
  - implement hall counter module or function
+ - Enable = 0 when in neutral and ramp'd down
  */
 
 #include "actuators.h"
 
-int desired_angle = 0;
+int desired_angle, desired_length = 0;
 int adc_value = 0; //big enough ?
 int actual_angle = 0;
 int duty = 0;
@@ -27,9 +28,9 @@ int write_delay = 0;
 
 FILE* file;
 enum directions {
-	RIGHT, LEFT, NEUTRAL
+	RIGHT, LEFT, NEUTRAL, IN, OUT
 };
-int rudder_direction = NEUTRAL;
+int rudder_direction, sail_direction = NEUTRAL;
 
 #define 	CONVERTION_VALUE 	0.05	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	850 	// <-- ~1800/2
@@ -38,6 +39,7 @@ int rudder_direction = NEUTRAL;
 void init_io();
 void initFiles();
 void read_desired_rudder_angle_values();
+void read_desired_sail_length_values();
 void sleep_ms();
 
 int main() {
@@ -47,8 +49,9 @@ int main() {
 
 	for (;;) {
 		read_desired_rudder_angle_values();
+		read_desired_sail_length_values();
 
-		//read from ADC
+		//read from rudder ADC
 		/*ADC READ*/
 		fprintf(stdout, "adc reading\n");
 		file = fopen("/sys/class/hwmon/hwmon0/device/in3_input", "r");
@@ -82,8 +85,7 @@ int main() {
 					duty = 0;
 					fprintf(stdout, "Going RIGHT\n");
 				}
-				/*L bridge high*/
-				/*R bridge low*/
+				/*EN bridge A*/
 				system("echo 1 > /sys/class/gpio/gpio171/value");
 				system("echo 1 > /sys/class/gpio/gpio172/value");
 
@@ -94,8 +96,7 @@ int main() {
 					duty = 0;
 					fprintf(stdout, "Going LEFT\n");
 				}
-				/*L bridge low*/
-				/*R bridge high*/
+				/*EN bridge A*/
 				system("echo 1 > /sys/class/gpio/gpio171/value");
 				system("echo 1 > /sys/class/gpio/gpio172/value");
 
@@ -187,6 +188,7 @@ void initFiles() {
 	system("mkdir /tmp/actuators");
 	system("echo 0 > /tmp/sailboat/Rudder_Feedback");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
+	system("echo 0 > /tmp/sailboat/Navigation_System_Sail");
 }
 
 void init_io() {
@@ -229,6 +231,16 @@ void read_desired_rudder_angle_values() {
 	fclose(file);
 
 	fprintf(stdout, "desired angle: %d\n", desired_angle);
+}
+
+void read_desired_sail_length_values() {
+	fprintf(stdout, "reading desired length\n");
+
+	file = fopen("/tmp/sailboat/Navigation_System_Sail", "r");
+	fscanf(file, "%d", &desired_length);
+	fclose(file);
+
+	fprintf(stdout, "desired length: %d\n", desired_length);
 }
 
 void sleep_ms(int ms) {
