@@ -2,16 +2,19 @@
  * This code is made for Cyber sailing class spring'13
  * input is an angle between -45 deg og 45 deg
  * Interface:
+ * RUDDER:
  * 	2 pwm's
- * 	1 adc
+ * 	1 outputs for Enable pin on the dual-h-bridge
+ * 	1 adc <- Rudder angular sensor
+ * 	SAIL:
+ * 	2 pwm's
  * 	2 inputs from hall module (LA36)
- * 	4 outputs for dual-h-bridge
+ * 	1 outputs for Enable pin on the dual-h-bridge
  */
 
 /* TO DO
- - set a write file timeout
- - init function
  - Calibrate CONVERTION_VALUE
+ - implement hall counter module or function
  */
 
 #include "actuators.h"
@@ -26,7 +29,7 @@ FILE* file;
 enum directions {
 	RIGHT, LEFT, NEUTRAL
 };
-int direction = NEUTRAL;
+int rudder_direction = NEUTRAL;
 
 #define 	CONVERTION_VALUE 	0.05	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	850 	// <-- ~1800/2
@@ -74,8 +77,8 @@ int main() {
 		if (delta_angle > ERROR_MARGIEN) {
 			//set outputs
 			if (actual_angle < desired_angle) {
-				if (direction != RIGHT) {
-					direction = RIGHT;
+				if (rudder_direction != RIGHT) {
+					rudder_direction = RIGHT;
 					duty = 0;
 					fprintf(stdout, "Going RIGHT\n");
 				}
@@ -86,8 +89,8 @@ int main() {
 
 				fprintf(stdout, "actual_angle < desired_angle\n");
 			} else if (actual_angle > desired_angle) {
-				if (direction != LEFT) {
-					direction = LEFT;
+				if (rudder_direction != LEFT) {
+					rudder_direction = LEFT;
 					duty = 0;
 					fprintf(stdout, "Going LEFT\n");
 				}
@@ -99,8 +102,8 @@ int main() {
 				fprintf(stdout, "actual_angle > desired_angle\n");
 			} else {
 				fprintf(stdout, "actual_angle = desired_angle!!!\n");
-				if (direction != NEUTRAL) {
-					direction = NEUTRAL;
+				if (rudder_direction != NEUTRAL) {
+					rudder_direction = NEUTRAL;
 					duty = 0;
 					fprintf(stdout, "Going NEUTRAL\n");
 
@@ -117,11 +120,11 @@ int main() {
 			}
 
 			//ramp PWM up slowly
-			if (direction == NEUTRAL) {
+			if (rudder_direction == NEUTRAL) {
 				/*set pwm duty = duty variable*/
-			} else if (duty != 90 && direction != NEUTRAL) {
+			} else if (duty != 90 && rudder_direction != NEUTRAL) {
 				duty = 0;
-				if (direction == LEFT) {
+				if (rudder_direction == LEFT) {
 					file = fopen("/dev/pwm11", "w");
 					fprintf(file, "%d", 0);
 					fclose(file);
@@ -136,7 +139,7 @@ int main() {
 
 						sleep_ms(70);
 					}
-				} else if (direction == RIGHT) {
+				} else if (rudder_direction == RIGHT) {
 					file = fopen("/dev/pwm10", "w");
 					fprintf(file, "%d", 0);
 					fclose(file);
