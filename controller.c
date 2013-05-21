@@ -122,10 +122,10 @@ void initfiles() {
 	system("echo 0 > /tmp/sailboat/Manual_Control");
 	system("echo 0 > /tmp/sailboat/Manual_Control_Rudder");
 	system("echo 0 > /tmp/sailboat/Manual_Control_Sail");
-	system("echo 0 > /tmp/sailboat/Point_Start_Lat");
-	system("echo 0 > /tmp/sailboat/Point_Start_Lon");
-	system("echo 0 > /tmp/sailboat/Point_End_Lat");
-	system("echo 0 > /tmp/sailboat/Point_End_Lon");
+	//system("echo 0 > /tmp/sailboat/Point_Start_Lat");
+	//system("echo 0 > /tmp/sailboat/Point_Start_Lon");
+	//system("echo 0 > /tmp/sailboat/Point_End_Lat");
+	//system("echo 0 > /tmp/sailboat/Point_End_Lon");
 	system("echo 0 > /tmp/sailboat/Guidance_Heading");
 }
 
@@ -208,8 +208,9 @@ void guidance() {
 
 
 	// GUIDANCE v1: nogozone and tack capable solution
-	float x, y, startx, starty, endx, endy, theta_wind, theta_d_b, xl, xr;
+	float x, y, startx, starty, endx, endy, theta_wind, theta_d_b;
 	float theta_LOS, theta_l, theta_r, theta_d1, theta_d1_b;
+	float a_x, b_x;
 	float _Complex X, X0, X_T, Geo_X, Geo_X0, Geo_X_T, X_T_b, X_b, Xl, Xr;
 	bool inrange;
 
@@ -219,6 +220,7 @@ void guidance() {
 	starty=Point_Start_Lat;
 	endx=Point_End_Lon;
 	endy=Point_End_Lat;
+
 
 	theta_wind=Wind_Angle*PI/180;
 	
@@ -236,7 +238,7 @@ void guidance() {
 	Geo_X_T = Point_End_Lon + 1*I*Point_End_Lat;
 	X_T=(Geo_X_T-Geo_X0);
 	X_T=creal(X_T)*CONVLON + I*cimag(X_T)*CONVLAT;
-
+	
 
 	// ** turning matrix **
 
@@ -247,11 +249,10 @@ void guidance() {
 	
 	// Using theta_wind to transfer X_T. Here theta_wind is expected to be zero
 	// when coming from north, going clockwise in radians.
-	X_T_b = cexp(1*I*(atan2((endy-starty)*CONVLAT,(endx-startx)*CONVLON)+theta_wind))*cabs(X_T-X0);
+	X_T_b =	cexp(1*I*(atan2((endy-starty) *CONVLAT, (endx-startx) *CONVLON)+theta_wind))*cabs(X_T-X0);
 	
-	X_b = cexp(1*I*(atan2((y-starty)*CONVLAT,(x-startx)*CONVLON)+theta_wind))*cabs(X-X0);
+	X_b = 	cexp(1*I*(atan2((y-starty)    *CONVLAT, (x-startx)    *CONVLON)+theta_wind))*cabs(X-X0);
 	theta_d_b = theta_d + theta_wind;
-	
 
 	// ** Guidance system **
 
@@ -259,14 +260,32 @@ void guidance() {
 	Xl = -2 + 2*1*I;
 	Xr = 2 + 2*1*I;	
 
-	// tacking boundaries
-	xl = -TACKINGRANGE/2;
-	xr = TACKINGRANGE/2;
-
 	// definition of the different angles
 	theta_LOS = atan2(cimag(X_T_b)-cimag(X_b),creal(X_T_b)-creal(X_b));
 	theta_l = atan2(cimag(exp(-1*I*theta_LOS)*Xl),creal(cexp(-1*I*theta_LOS)*Xl));
 	theta_r = atan2(cimag(exp(-1*I*theta_LOS)*Xr),creal(cexp(-1*I*theta_LOS)*Xr));
+
+	// tacking boundaries
+	// Line: x = a_x*y +/- b_x
+	if (creal(X_T_b-X0) != 0)
+	{
+		a_x = creal(X_T_b-X0)/cimag(X_T_b-X0);
+	}
+	else
+    {
+		a_x=0;
+	}
+	
+	b_x = TACKINGRANGE / (2 * sin(theta_LOS));
+
+	
+	//DEBUG
+/*
+	printf("\n\n");
+	printf("[x: %8.2f], [y: %8.2f]\n[startx: %8.2f], [starty: %8.2f]\n[endx: %8.2f], [endy: %8.2f]\n",x, y, startx, starty, endx, endy);
+	printf("[X_T_b: %7.5f + i%7.5f] \n[X_b:   %7.5f + i%7.5f] \n", creal(X_T_b), cimag(X_T_b), creal(X_b), cimag(X_b) );
+	printf("[theta_LOS: %4.2f] [cond1: %5.3f] [cond2: %5.3f]\n", theta_LOS, atan2(cimag(Xr),creal(Xr)), atan2(cimag(Xl),creal(Xl)) );
+*/
 
 	// stop signal
 	if (cabs(X_T - X) < RADIUSACCEPTED)	{ inrange = true; }
@@ -291,14 +310,14 @@ void guidance() {
 		{
 			if (theta_d_b == atan2(creal(Xl),cimag(Xl)))
 			{
-				if (creal(X_b) <= xl) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 3 \n"); }     
+				if (creal(X_b) < a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 3 \n"); }     
 				else { theta_d1_b = theta_d_b; printf(">> debug 4 \n");}
 		    } 
 			else
 			{
 				if ( theta_d_b == atan2(creal(Xr),cimag(Xr)) )
 				{
-					if (xr <= creal(X_b)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 5 \n");}
+					if (creal(X_b) > a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 5 \n");}
 					else { theta_d1_b = theta_d_b; printf(">> debug 6 \n");}
 				}
 				else
@@ -313,6 +332,7 @@ void guidance() {
 	// Inverse turning matrix
 	theta_d1 = theta_d1_b-theta_wind;
 	Guidance_Heading = (PI/2 - theta_d1) * 180/PI; 
+	theta_d = theta_d1;
 
 	// write guidance_heading to file to be displayed in GUI 
 	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
