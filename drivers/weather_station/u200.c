@@ -1315,8 +1315,10 @@ void writeondisk()
 				
 				// write to file		
 				file = fopen(tmpchar,"w");
-				fprintf(file,"%s",currentList[i].value);
-				fclose(file);
+				if (file != NULL) {
+					fprintf(file,"%s",currentList[i].value);
+					fclose(file);
+				}
 			
 				timer_last[k] = timer_curr[k];
 			}

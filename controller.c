@@ -140,11 +140,13 @@ void initfiles() {
  */
 void check_system_status() {
 	file = fopen("/tmp/sailboat/Navigation_System", "r");
-	fscanf(file, "%d", &Navigation_System);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%d", &Navigation_System);	fclose(file);
+	}
 	file = fopen("/tmp/sailboat/Manual_Control", "r");
-	fscanf(file, "%d", &Manual_Control);
-	fclose(file);
+	if (file != NULL) {	
+		fscanf(file, "%d", &Manual_Control); fclose(file);
+	}
 }
 
 /*
@@ -154,11 +156,13 @@ void check_system_status() {
  */
 void read_manual_control_values() {
 	file = fopen("/tmp/sailboat/Manual_Control_Rudder", "r");
-	fscanf(file, "%d", &Manual_Control_Rudder);
-	fclose(file);
+	if (file != NULL) {	
+		fscanf(file, "%d", &Manual_Control_Rudder); fclose(file);
+	}
 	file = fopen("/tmp/sailboat/Manual_Control_Sail", "r");
-	fscanf(file, "%d", &Manual_Control_Sail);
-	fclose(file);
+	if (file != NULL) {	
+		fscanf(file, "%d", &Manual_Control_Sail); fclose(file);
+	}
 }
 
 /*
@@ -167,8 +171,9 @@ void read_manual_control_values() {
  */
 void move_rudder(int angle) {
 	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "w");
-	fprintf(file, "%d", angle);
-	fclose(file);
+	if (file != NULL) {	
+		fprintf(file, "%d", angle);	fclose(file);
+	}
 }
 
 /*
@@ -177,17 +182,21 @@ void move_rudder(int angle) {
  */
 void read_coordinates() {
 	file = fopen("/tmp/sailboat/Point_Start_Lat", "r");
-	fscanf(file, "%f", &Point_Start_Lat);
-	fclose(file);
+	if (file != NULL) {	
+		fscanf(file, "%f", &Point_Start_Lat); fclose(file);
+	}
 	file = fopen("/tmp/sailboat/Point_Start_Lon", "r");
-	fscanf(file, "%f", &Point_Start_Lon);
-	fclose(file);
+	if (file != NULL) {	
+		fscanf(file, "%f", &Point_Start_Lon); fclose(file);
+	}
 	file = fopen("/tmp/sailboat/Point_End_Lat", "r");
-	fscanf(file, "%f", &Point_End_Lat);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Point_End_Lat);	fclose(file);
+	}
 	file = fopen("/tmp/sailboat/Point_End_Lon", "r");
-	fscanf(file, "%f", &Point_End_Lon);
-	fclose(file);
+	if (file != NULL) {	
+		fscanf(file, "%f", &Point_End_Lon);	fclose(file);
+	}
 }
 
 
@@ -344,8 +353,9 @@ void guidance() {
 
 	// write guidance_heading to file to be displayed in GUI 
 	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
-	fprintf(file, "%4.1f", Guidance_Heading);
-	fclose(file);
+	if (file != NULL) {	
+		fprintf(file, "%4.1f", Guidance_Heading); fclose(file);
+	}
 	
 }
 
@@ -393,7 +403,7 @@ void calculate_rudder_angle() {
 void read_weather_station() {
 	//RATE OF TURN
 	file = fopen("/tmp/u200/Rate", "r");
-	if (file != 0) {
+	if (file != NULL) {
 		fscanf(file, "%f", &Rate);
 		fclose(file);
 	} else {
@@ -403,47 +413,59 @@ void read_weather_station() {
 
 	//VESSEL HEADING
 	file = fopen("/tmp/u200/Heading", "r");
-	fscanf(file, "%f", &Heading);
-	fclose(file);
+	if (file != NULL) { 
+		fscanf(file, "%f", &Heading); fclose(file);
+	}
 	file = fopen("/tmp/u200/Deviation", "r");
-	fscanf(file, "%f", &Deviation);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Deviation);	fclose(file);
+	}
 	file = fopen("/tmp/u200/Variation", "r");
-	fscanf(file, "%f", &Variation);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Variation);	fclose(file);
+	}
 
 	//ATTITUDE
 	file = fopen("/tmp/u200/Yaw", "r");
-	fscanf(file, "%f", &Yaw);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Yaw); fclose(file);
+	}
 	file = fopen("/tmp/u200/Pitch", "r");
-	fscanf(file, "%f", &Pitch);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Pitch);	fclose(file);
+	}
 	file = fopen("/tmp/u200/Roll", "r");
-	fscanf(file, "%f", &Roll);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Roll);	fclose(file);
+	}
 
 	//GPS_DATA
 	file = fopen("/tmp/u200/Latitude", "r");
-	fscanf(file, "%f", &Latitude);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Latitude); fclose(file);
+	}
 	file = fopen("/tmp/u200/Longitude", "r");
-	fscanf(file, "%f", &Longitude);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Longitude);	fclose(file);
+	}
 	file = fopen("/tmp/u200/COG", "r");
-	fscanf(file, "%f", &COG);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &COG); fclose(file);
+	}
 	file = fopen("/tmp/u200/SOG", "r");
-	fscanf(file, "%f", &SOG);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &SOG); fclose(file);
+	}
 
 	//WIND_DATA
 	file = fopen("/tmp/u200/Wind_Speed", "r");
-	fscanf(file, "%f", &Wind_Speed);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Wind_Speed); fclose(file);
+	}
 	file = fopen("/tmp/u200/Wind_Angle", "r");
-	fscanf(file, "%f", &Wind_Angle);
-	fclose(file);
+	if (file != NULL) {
+		fscanf(file, "%f", &Wind_Angle); fclose(file);
+	}
 
 }
 
@@ -482,8 +504,10 @@ void write_log_file() {
 		time ( &rawtime );
 		timeinfo = localtime ( &rawtime );
 		file = fopen(logfile, "w");
-		fprintf(file, "Local time and date: %s", asctime (timeinfo));
-		fclose(file);
+		if (file != NULL) {
+			fprintf(file, "Local time and date: %s", asctime (timeinfo));
+			fclose(file);
+		}
 	
 		logEntry=1;
 	}
@@ -502,8 +526,10 @@ void write_log_file() {
 	
 	// write to file
 	file = fopen(logfile, "a");
-	fprintf(file, "%s\n", logline);
-	fclose(file);
+	if (file != NULL) {
+		fprintf(file, "%s\n", logline);
+		fclose(file);
+	}
 	
 	logEntry++;
 }
