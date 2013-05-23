@@ -16,7 +16,7 @@
 #define GAIN_P 1
 #define GAIN_I 0
 
-#define TACKINGRANGE 	100		//meters
+#define TACKINGRANGE 	200		//meters
 #define RADIUSACCEPTED	20		//meters
 #define CONVLON			64078	//meters per degree
 #define CONVLAT			110742	//meters per degree
@@ -116,17 +116,17 @@ void initfiles() {
 	system("mkdir -p /tmp/sailboat");
 	system("mkdir -p /var/tmp/sailboat-log/");
 
-	system("echo 0 > /tmp/sailboat/Navigation_System");
-	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
-	system("echo 0 > /tmp/sailboat/Navigation_System_Sail");
-	system("echo 0 > /tmp/sailboat/Manual_Control");
-	system("echo 0 > /tmp/sailboat/Manual_Control_Rudder");
-	system("echo 0 > /tmp/sailboat/Manual_Control_Sail");
-	//system("echo 0 > /tmp/sailboat/Point_Start_Lat");
-	//system("echo 0 > /tmp/sailboat/Point_Start_Lon");
-	//system("echo 0 > /tmp/sailboat/Point_End_Lat");
-	//system("echo 0 > /tmp/sailboat/Point_End_Lon");
-	system("echo 0 > /tmp/sailboat/Guidance_Heading");
+	system("[ ! -f /tmp/sailboat/Navigation_System ] 		&& echo 0 > /tmp/sailboat/Navigation_System");
+	system("[ ! -f /tmp/sailboat/Navigation_System_Rudder ] && echo 0 > /tmp/sailboat/Navigation_System_Rudder");
+	system("[ ! -f /tmp/sailboat/Navigation_System_Sail ] 	&& echo 0 > /tmp/sailboat/Navigation_System_Sail");
+	system("[ ! -f /tmp/sailboat/Manual_Control ] 			&& echo 0 > /tmp/sailboat/Manual_Control");
+	system("[ ! -f /tmp/sailboat/Manual_Control_Rudder ] 	&& echo 0 > /tmp/sailboat/Manual_Control_Rudder");
+	system("[ ! -f /tmp/sailboat/Manual_Control_Sail ] 		&& echo 0 > /tmp/sailboat/Manual_Control_Sail");
+	system("[ ! -f /tmp/sailboat/Point_Start_Lat ] 			&& echo 0 > /tmp/sailboat/Point_Start_Lat");
+	system("[ ! -f /tmp/sailboat/Point_Start_Lon ] 			&& echo 0 > /tmp/sailboat/Point_Start_Lon");
+	system("[ ! -f /tmp/sailboat/Point_End_Lat ] 			&& echo 0 > /tmp/sailboat/Point_End_Lat");
+	system("[ ! -f /tmp/sailboat/Point_End_Lon ] 			&& echo 0 > /tmp/sailboat/Point_End_Lon");
+	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 		&& echo 0 > /tmp/sailboat/Guidance_Heading");
 }
 
 /*
