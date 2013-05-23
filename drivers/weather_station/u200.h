@@ -50,7 +50,7 @@
 
 
 // time interval in seconds to update /tmp files
-#define WRITE_INTERVAL	1
+#define WRITE_INTERVAL	2
 
 
 /* function definitions */

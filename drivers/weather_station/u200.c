@@ -1306,10 +1306,12 @@ void writeondisk()
 			//update timer for current entry
 			timer_curr[k] = time(NULL);
 
-			//check timer for current entry
-			if (difftime (timer_curr[k],timer_last[k]) >= WRITE_INTERVAL) {
-				
+			// remove timers for High Priority variables
+			if (k==1 || k==7 || k==8 || k==9 || k==12 ) { timer_last[k] = timer_curr[k]-3; }
 
+			//check timer for current entry
+			if (difftime(timer_curr[k],timer_last[k]) >= WRITE_INTERVAL) {
+				
 				sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
 				if (debug) { printf("      %s -> [%s]\n",tmpchar, currentList[i].value); }
 				
