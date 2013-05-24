@@ -15,8 +15,8 @@
 #define MAINSLEEP_MSEC	250		//milliseconds
 
 #define PI 				3.14159265
-#define GAIN_P 			1
-#define GAIN_I 			0
+#define GAIN_P 			-1
+#define GAIN_I 			-0.5
 
 #define TACKINGRANGE 	200		//meters
 #define RADIUSACCEPTED	20		//meters
@@ -59,10 +59,10 @@ int main(int argc, char ** argv) {
 	fprintf(stdout, "\nSailboat-controller running..\n");
 	read_weather_station();
 
-	// MAIL LOOP
+	// MAIN LOOP
 	while (1) {
 
-		// read GUI configuration files (on/off and manual controls)
+		// read GUI configuration files (on/off and manual control values)
 		check_system_status();
 
 		if (Manual_Control) {
@@ -91,6 +91,7 @@ int main(int argc, char ** argv) {
 				rudder_pid_controller();
 
 				// Move the rudder to the desired angle
+				printf("desired angle: %d ", Rudder_Desired_Angle);
 				move_rudder(Rudder_Desired_Angle);
 			
 				// If the desired point is reached (20m tollerance), switch the coordinates and come back home
@@ -378,9 +379,12 @@ void guidance() {
 void rudder_pid_controller() {
 
 	float dHeading, pValue, integralValue;
-	dHeading = Guidance_Heading - Heading; // in degrees
-	// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
 
+	dHeading = Guidance_Heading - Heading; // in degrees
+	dHeading = dHeading*PI/180;
+	// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
+	dHeading = atan2(sin(dHeading),cos(dHeading));
+	dHeading = dHeading*180/PI;	
 	// P controller
 	pValue = GAIN_P * dHeading;
 
@@ -396,9 +400,12 @@ void rudder_pid_controller() {
 	integralValue = GAIN_I * integratorSum;
 
 	// result
-	if (abs(dHeading) > dHEADING_MAX && abs(Rate) > RATEOFTURN_MAX) // Limit control statement
+	if (abs(dHeading) > dHEADING_MAX || abs(Rate) > RATEOFTURN_MAX) // Limit control statement
 	{
+		printf("pValue: %f, integerValue: %f\n",pValue,integralValue);
 		Rudder_Desired_Angle = round(pValue + integralValue);
+		if(Rudder_Desired_Angle > 45) Rudder_Desired_Angle=45;
+		if(Rudder_Desired_Angle < -45) Rudder_Desired_Angle=-45;
 	}
 	// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
 	// fprintf(stdout,"Rudder_Desired_Angle: %d\n\n",Rudder_Desired_Angle);
@@ -549,5 +556,4 @@ void write_log_file() {
 	}
 
 	logEntry++;
-
 }
