@@ -1225,19 +1225,19 @@ void initFiles(){
 	//system("mkdir /tmp/{127251,127250,127257,129025,129026,130306}");
 	system("mkdir -p /tmp/u200");
 
-	system("echo 0 > /tmp/u200/Rate");
-	system("echo 0 > /tmp/u200/Heading");
-	system("echo 0 > /tmp/u200/Deviation");
-	system("echo 0 > /tmp/u200/Variation");
-	system("echo 0 > /tmp/u200/Yaw");
-	system("echo 0 > /tmp/u200/Pitch");
-	system("echo 0 > /tmp/u200/Roll");
-	system("echo 0 > /tmp/u200/Latitude");
-	system("echo 0 > /tmp/u200/Longitude");
-	system("echo 0 > /tmp/u200/COG");
-	system("echo 0 > /tmp/u200/SOG");
-	system("echo 0 > /tmp/u200/Wind_Speed");
-	system("echo 0 > /tmp/u200/Wind_Angle");
+	system("[ ! -f /tmp/u200/Rate ] 		&& echo 0 > /tmp/u200/Rate");
+	system("[ ! -f /tmp/u200/Heading ] 		&& echo 0 > /tmp/u200/Heading");
+	system("[ ! -f /tmp/u200/Deviation ] 	&& echo 0 > /tmp/u200/Deviation");
+	system("[ ! -f /tmp/u200/Variation ] 	&& echo 0 > /tmp/u200/Variation");
+	system("[ ! -f /tmp/u200/Yaw ] 			&& echo 0 > /tmp/u200/Yaw");
+	system("[ ! -f /tmp/u200/Pitch ] 		&& echo 0 > /tmp/u200/Pitch");
+	system("[ ! -f /tmp/u200/Roll ] 		&& echo 0 > /tmp/u200/Roll");
+	system("[ ! -f /tmp/u200/Latitude ] 	&& echo 0 > /tmp/u200/Latitude");
+	system("[ ! -f /tmp/u200/Longitude ] 	&& echo 0 > /tmp/u200/Longitude");
+	system("[ ! -f /tmp/u200/COG ] 			&& echo 0 > /tmp/u200/COG");
+	system("[ ! -f /tmp/u200/SOG ] 			&& echo 0 > /tmp/u200/SOG");
+	system("[ ! -f /tmp/u200/Wind_Speed ] 	&& echo 0 > /tmp/u200/Wind_Speed");
+	system("[ ! -f /tmp/u200/Wind_Angle ] 	&& echo 0 > /tmp/u200/Wind_Angle");
 }
 
 
@@ -1306,17 +1306,21 @@ void writeondisk()
 			//update timer for current entry
 			timer_curr[k] = time(NULL);
 
-			//check timer for current entry
-			if (difftime (timer_curr[k],timer_last[k]) >= WRITE_INTERVAL) {
-				
+			// remove timers for High Priority variables
+			if (k==1 || k==7 || k==8 || k==9 || k==12 ) { timer_last[k] = timer_curr[k]-3; }
 
+			//check timer for current entry
+			if (difftime(timer_curr[k],timer_last[k]) >= WRITE_INTERVAL) {
+				
 				sprintf(tmpchar,"/tmp/u200/%s", currentList[i].name);
 				if (debug) { printf("      %s -> [%s]\n",tmpchar, currentList[i].value); }
 				
 				// write to file		
 				file = fopen(tmpchar,"w");
-				fprintf(file,"%s",currentList[i].value);
-				fclose(file);
+				if (file != NULL) {
+					fprintf(file,"%s",currentList[i].value);
+					fclose(file);
+				}
 			
 				timer_last[k] = timer_curr[k];
 			}
