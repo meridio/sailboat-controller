@@ -33,8 +33,8 @@ enum directions {
 int rudder_direction, sail_direction = NEUTRAL;
 
 #define 	CONVERTION_VALUE 	0.05	// Needs to be calibrated!
-#define 	FEEDBACK_CENTER 	850 	// <-- ~1800/2
-#define 	ERROR_MARGIEN 		5
+#define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
+#define 	ERROR_MARGIEN 		1
 
 void init_io();
 void initFiles();
@@ -80,10 +80,10 @@ int main() {
 		if (delta_angle > ERROR_MARGIEN) {
 			//set outputs
 			if (actual_angle < desired_angle) {
-				if (rudder_direction != RIGHT) {
-					rudder_direction = RIGHT;
+				if (rudder_direction != LEFT) {
+					rudder_direction = LEFT;
 					duty = 0;
-					fprintf(stdout, "Going RIGHT\n");
+					fprintf(stdout, "Going LEFT\n");
 				}
 				/*EN bridge A*/
 				system("echo 1 > /sys/class/gpio/gpio171/value");
@@ -91,10 +91,10 @@ int main() {
 
 				fprintf(stdout, "actual_angle < desired_angle\n");
 			} else if (actual_angle > desired_angle) {
-				if (rudder_direction != LEFT) {
-					rudder_direction = LEFT;
+				if (rudder_direction != RIGHT) {
+					rudder_direction = RIGHT;
 					duty = 0;
-					fprintf(stdout, "Going LEFT\n");
+					fprintf(stdout, "Going RIGHT\n");
 				}
 				/*EN bridge A*/
 				system("echo 1 > /sys/class/gpio/gpio171/value");
@@ -123,13 +123,13 @@ int main() {
 			//ramp PWM up slowly
 			if (rudder_direction == NEUTRAL) {
 				/*set pwm duty = duty variable*/
-			} else if (duty != 90 && rudder_direction != NEUTRAL) {
+			} else if (duty != 20 && rudder_direction != NEUTRAL) {
 				duty = 0;
 				if (rudder_direction == LEFT) {
 					file = fopen("/dev/pwm11", "w");
 					fprintf(file, "%d", 0);
 					fclose(file);
-					while (duty < 90) {
+					while (duty < 20) {
 						/*set pwm duty = duty variable*/
 						duty += 10;
 						fprintf(stdout, "duty: %d\n", duty);
@@ -144,7 +144,7 @@ int main() {
 					file = fopen("/dev/pwm10", "w");
 					fprintf(file, "%d", 0);
 					fclose(file);
-					while (duty < 90) {
+					while (duty < 20) {
 						/*set pwm duty = duty variable*/
 						duty += 10;
 						fprintf(stdout, "duty: %d\n", duty);
