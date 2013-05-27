@@ -390,19 +390,22 @@ void rudder_pid_controller() {
 	dHeading = atan2(sin(dHeading),cos(dHeading));
 	dHeading = dHeading*180/PI;	
 
-	// P controller
-	pValue = GAIN_P * dHeading;
+	//if (abs(dHeading) > dHEADING_MAX || abs(Rate) > RATEOFTURN_MAX) // Limit control statement
+	//{
+		// P controller
+		pValue = GAIN_P * dHeading;
 
-	// Integration part
-	// The following checks, will keep integratorSum within -0.2 and 0.2
-	if (integratorSum < -INTEGRATOR_MAX && dHeading > 0) {
-		integratorSum = dHeading + integratorSum;
-	} else if (integratorSum > INTEGRATOR_MAX && dHeading < 0) {
-		integratorSum = dHeading + integratorSum;
-	} else {
-		integratorSum = integratorSum;
-	}
-	integralValue = GAIN_I * integratorSum;
+		// Integration part
+		// The following checks, will keep integratorSum within -0.2 and 0.2
+		if (integratorSum < -INTEGRATOR_MAX && dHeading > 0) {
+			integratorSum = dHeading + integratorSum;
+		} else if (integratorSum > INTEGRATOR_MAX && dHeading < 0) {
+			integratorSum = dHeading + integratorSum;
+		} else {
+			integratorSum = integratorSum;
+		}
+		integralValue = GAIN_I * integratorSum;
+	//}
 	
 	// result
 	Rudder_Desired_Angle = round(pValue + integralValue);
