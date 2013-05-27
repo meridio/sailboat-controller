@@ -25,19 +25,17 @@ int adc_value = 0; //big enough ?
 int actual_angle = 0;
 int duty = 0;
 int write_delay = 0;
-int rudder_moving = 0;
 
 FILE* file;
 enum directions {
 	RIGHT, LEFT, NEUTRAL, IN, OUT
 };
-int rudder_direction, sail_direction, last_rudder_direction = NEUTRAL;
+int rudder_direction, sail_direction = NEUTRAL;
 
 //#define 	LIMIT_VALUE 	20
 #define 	CONVERTION_VALUE 	0.11	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
 #define 	ERROR_MARGIEN 		2
-#define 	MAX_DUTY 			60
 
 void init_io();
 void initFiles();
@@ -109,7 +107,6 @@ int main() {
 				if (rudder_direction != NEUTRAL) {
 					rudder_direction = NEUTRAL;
 					duty = 0;
-					rudder_moving = 0;
 					fprintf(stdout, "Going NEUTRAL\n");
 
 					fprintf(stdout, "duty: %d\n", duty);
@@ -127,64 +124,38 @@ int main() {
 			//ramp PWM up slowly
 			if (rudder_direction == NEUTRAL) {
 				/*set pwm duty = duty variable*/
-			} else if (rudder_direction != NEUTRAL) {
-
+			} else if (duty != 20 && rudder_direction != NEUTRAL) {
+				duty = 0;
 				if (rudder_direction == LEFT) {
 					file = fopen("/dev/pwm10", "w");
 					fprintf(file, "%d", 0);
 					fclose(file);
-					if (rudder_moving == 0) {
-						while (duty < MAX_DUTY) {
-							/*set pwm duty = duty variable*/
-							duty += 10;
-							fprintf(stdout, "duty: %d\n", duty);
+					while (duty < 20) {
+						/*set pwm duty = duty variable*/
+						duty += 10;
+						fprintf(stdout, "duty: %d\n", duty);
 
-							file = fopen("/dev/pwm11", "w");
-							fprintf(file, "%d", duty);
-							fclose(file);
-							rudder_moving = 1;
-							sleep_ms(5);
-						}
+						file = fopen("/dev/pwm11", "w");
+						fprintf(file, "%d", duty);
+						fclose(file);
+
+						sleep_ms(30);
 					}
-					if (delta_angle < 5) {
-						duty = 20;
-					} else if (delta_angle < 10) {
-						duty = 30;
-					} else {
-						duty = MAX_DUTY;
-					}
-					file = fopen("/dev/pwm11", "w");
-					fprintf(file, "%d", duty);
-					fclose(file);
 				} else if (rudder_direction == RIGHT) {
 					file = fopen("/dev/pwm11", "w");
 					fprintf(file, "%d", 0);
 					fclose(file);
-					if (rudder_moving == 0) {
-						while (duty < MAX_DUTY) {
-							/*set pwm duty = duty variable*/
-							duty += 10;
-							fprintf(stdout, "duty: %d\n", duty);
+					while (duty < 20) {
+						/*set pwm duty = duty variable*/
+						duty += 10;
+						fprintf(stdout, "duty: %d\n", duty);
 
-							file = fopen("/dev/pwm10", "w");
-							fprintf(file, "%d", duty);
-							fclose(file);
-							rudder_moving = 1;
-							sleep_ms(5);
-						}
+						file = fopen("/dev/pwm10", "w");
+						fprintf(file, "%d", duty);
+						fclose(file);
+
+						sleep_ms(30);
 					}
-
-					if (delta_angle < 5) {
-						duty = 20;
-					} else if (delta_angle < 10) {
-						duty = 30;
-					} else {
-						duty = MAX_DUTY;
-					}
-
-					file = fopen("/dev/pwm10", "w");
-					fprintf(file, "%d", duty);
-					fclose(file);
 				}
 			}
 		} else {
