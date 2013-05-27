@@ -32,7 +32,8 @@ enum directions {
 };
 int rudder_direction, sail_direction = NEUTRAL;
 
-#define 	CONVERTION_VALUE 	0.05	// Needs to be calibrated!
+//#define 	LIMIT_VALUE 	20
+#define 	CONVERTION_VALUE 	0.11	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
 #define 	ERROR_MARGIEN 		2
 
@@ -229,7 +230,6 @@ void read_desired_rudder_angle_values() {
 	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "r");
 	fscanf(file, "%d", &desired_angle);
 	fclose(file);
-
 	fprintf(stdout, "desired angle: %d\n", desired_angle);
 }
 

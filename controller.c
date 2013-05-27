@@ -11,21 +11,23 @@
 #include <complex.h>
 #include <stdbool.h>
 
-#define MAINSLEEP_SEC	0		//seconds
-#define MAINSLEEP_MSEC	250		//milliseconds
+#define MAINSLEEP_SEC	0		// seconds
+#define MAINSLEEP_MSEC	250		// milliseconds
 
 #define PI 				3.14159265
-#define GAIN_P 			1
-#define GAIN_I 			0
 
-#define TACKINGRANGE 	200		//meters
-#define RADIUSACCEPTED	20		//meters
-#define CONVLON			64078	//meters per degree
-#define CONVLAT			110742	//meters per degree
+#define TACKINGRANGE 	200		// meters
+#define RADIUSACCEPTED	20		// meters
+#define CONVLON			64078	// meters per degree
+#define CONVLAT			110742	// meters per degree
 
-#define RATEOFTURN_MAX	0.1745	//PI/18
-#define dHEADING_MAX	0.6
-#define INTEGRATOR_MAX	0.2
+#define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
+#define RATEOFTURN_MAX	36		// [degrees/second]
+#define dHEADING_MAX	10		// [degrees] deviation, before rudder PI acts
+#define GAIN_P 			-1
+#define GAIN_I 			-0.001
+
+
 
 FILE* file;
 float Rate=0, Heading=0, Deviation=0, Variation=0, Yaw=0, Pitch=0, Roll=0;
@@ -59,10 +61,10 @@ int main(int argc, char ** argv) {
 	fprintf(stdout, "\nSailboat-controller running..\n");
 	read_weather_station();
 
-	// MAIL LOOP
+	// MAIN LOOP
 	while (1) {
 
-		// read GUI configuration files (on/off and manual controls)
+		// read GUI configuration files (on/off and manual control values)
 		check_system_status();
 
 		if (Manual_Control) {
@@ -91,6 +93,7 @@ int main(int argc, char ** argv) {
 				rudder_pid_controller();
 
 				// Move the rudder to the desired angle
+				printf("desired angle: %d ", Rudder_Desired_Angle);
 				move_rudder(Rudder_Desired_Angle);
 			
 				// If the desired point is reached (20m tollerance), switch the coordinates and come back home
@@ -374,12 +377,18 @@ void guidance() {
  *
  *	Calulate the desired RUDDER ANGLE position based on the Target Heading and Current Heading.
  *	The result ia a rounded value of the angle stored in the [Rudder_Desired_Angle] global variable
+ *
+ *	Daniel Wrede, May 2013
  */
 void rudder_pid_controller() {
 
 	float dHeading, pValue, integralValue;
+
 	dHeading = Guidance_Heading - Heading; // in degrees
-	// fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
+	dHeading = dHeading*PI/180;
+	// fprintf(stdout,"targetHeading: %f, deltaHeading: %f\n",targetHeading, dHeading);
+	dHeading = atan2(sin(dHeading),cos(dHeading));
+	dHeading = dHeading*180/PI;	
 
 	// P controller
 	pValue = GAIN_P * dHeading;
@@ -394,14 +403,11 @@ void rudder_pid_controller() {
 		integratorSum = integratorSum;
 	}
 	integralValue = GAIN_I * integratorSum;
-
+	
 	// result
-	if (abs(dHeading) > dHEADING_MAX && abs(Rate) > RATEOFTURN_MAX) // Limit control statement
-	{
-		Rudder_Desired_Angle = round(pValue + integralValue);
-	}
-	// fprintf(stdout,"pValue: %f, integralValue: %f\n",pValue,integralValue);
-	// fprintf(stdout,"Rudder_Desired_Angle: %d\n\n",Rudder_Desired_Angle);
+	Rudder_Desired_Angle = round(pValue + integralValue);
+	if(Rudder_Desired_Angle > 45) Rudder_Desired_Angle=45;
+	if(Rudder_Desired_Angle < -45) Rudder_Desired_Angle=-45;
 
 }
 
@@ -549,5 +555,4 @@ void write_log_file() {
 	}
 
 	logEntry++;
-
 }
