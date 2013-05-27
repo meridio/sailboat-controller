@@ -16,10 +16,12 @@
 
 #define PI 				3.14159265
 
-#define TACKINGRANGE 	200		// meters
+#define TACKINGRANGE 	100		// meters
 #define RADIUSACCEPTED	20		// meters
 #define CONVLON			64078	// meters per degree
 #define CONVLAT			110742	// meters per degree
+
+#define theta_nogo		55*PI/180	// [radiants] Angle of nogo zone, compared to wind direction
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
 #define RATEOFTURN_MAX	36		// [degrees/second]
@@ -38,6 +40,7 @@ int   Rudder_Desired_Angle=0, Manual_Control_Rudder=0, Manual_Control_Sail=0, Ru
 int   Navigation_System=0, Manual_Control=0;
 int   logEntry=0, logCount=0;
 char  logfile[50];
+
 
 void initfiles();
 void check_system_status();
@@ -278,9 +281,9 @@ void guidance() {
 	// ** Guidance system **
 
 	// deadzone limit direction
-	Xl = -2 + 2*1*I;
-	Xr = 2 + 2*1*I;	
-
+	Xl = -sin(theta_nogo)*2.8284 + I*cos(theta_nogo)*2.8284;	//-2 + 2*1*I;
+	Xr = sin(theta_nogo)*2.8284 + I*cos(theta_nogo)*2.8284;		//2 + 2*1*I;	
+	
 	// definition of the different angles
 	theta_LOS = atan2(cimag(X_T_b)-cimag(X_b),creal(X_T_b)-creal(X_b));
 	theta_l = atan2(cimag(cexp(-1*I*theta_LOS)*Xl),creal(cexp(-1*I*theta_LOS)*Xl));
