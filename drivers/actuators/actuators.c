@@ -34,7 +34,7 @@ int rudder_direction, sail_direction = NEUTRAL;
 
 #define 	CONVERTION_VALUE 	0.05	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
-#define 	ERROR_MARGIEN 		1
+#define 	ERROR_MARGIEN 		2
 
 void init_io();
 void initFiles();
@@ -62,7 +62,7 @@ int main() {
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
 		fprintf(stdout, "actual_angle: %d\n", actual_angle);
 		//write to disk
-		if (write_delay > 5) {
+		if (write_delay > 10) {
 			write_delay = 0;
 			file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
 			fprintf(file, "%d", actual_angle);
@@ -138,7 +138,7 @@ int main() {
 						fprintf(file, "%d", duty);
 						fclose(file);
 
-						sleep_ms(70);
+						sleep_ms(30);
 					}
 				} else if (rudder_direction == RIGHT) {
 					file = fopen("/dev/pwm10", "w");
@@ -153,7 +153,7 @@ int main() {
 						fprintf(file, "%d", duty);
 						fclose(file);
 
-						sleep_ms(70);
+						sleep_ms(30);
 					}
 				}
 			}
@@ -174,7 +174,7 @@ int main() {
 		}
 
 		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n");
-		sleep_ms(300);
+		sleep_ms(100);
 
 	}
 	return 0;
