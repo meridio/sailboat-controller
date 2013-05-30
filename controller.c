@@ -136,7 +136,7 @@ int main(int argc, char ** argv) {
  */
 void initfiles() {
 	system("mkdir -p /tmp/sailboat");
-	system("mkdir -p /var/tmp/sailboat-log/");
+	system("mkdir -p sailboat-log/");
 
 	system("[ ! -f /tmp/sailboat/Navigation_System ] 		&& echo 0 > /tmp/sailboat/Navigation_System");
 	system("[ ! -f /tmp/sailboat/Navigation_System_Rudder ] && echo 0 > /tmp/sailboat/Navigation_System_Rudder");
@@ -655,7 +655,7 @@ void write_log_file() {
 		//count files in log folder
 		int file_count = 1;
 
-		dirp = opendir("/var/tmp/sailboat-log/"); 
+		dirp = opendir("sailboat-log/"); 
 
 		while ((entry = readdir(dirp)) != NULL) {
 			if (entry->d_type == DT_REG) { 
@@ -665,7 +665,7 @@ void write_log_file() {
 		closedir(dirp);
 
 		// calculate filename
-		sprintf(logfile,"/var/tmp/sailboat-log/logfile_%.4d",file_count);
+		sprintf(logfile,"sailboat-log/logfile_%.4d",file_count);
 
 		// create the new file with a verbose time format as first line
 		time ( &rawtime );
