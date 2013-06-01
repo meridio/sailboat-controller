@@ -13,6 +13,7 @@
 
 #define MAINSLEEP_SEC	0		// seconds
 #define MAINSLEEP_MSEC	250		// milliseconds
+#define MAXLOGLINES		10000
 
 #define PI 				3.14159265
 
@@ -38,7 +39,7 @@ float Latitude=0, Longitude=0, COG=0, SOG=0, Wind_Speed=0, Wind_Angle=0;
 float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0, Manual_Control_Rudder=0, Manual_Control_Sail=0, Rudder_Feedback=0;
 int   Navigation_System=0, Manual_Control=0;
-int   logEntry=0, logCount=0;
+int   logEntry=0, logCount=0, fa_debug=0;
 char  logfile[50];
 
 void initfiles();
@@ -114,16 +115,16 @@ int main(int argc, char ** argv) {
 				// calculate_distance();
 				// switch_coordinates();
 
+				// write a log line every N samples
+				logCount++;
+				if(logCount>=1) {write_log_file(); logCount=0;}
+
 			} else {
 				// NAVIGATION SYSTEM IS IDLE
 				// do nothing
 			}
 
 		}
-
-		// write a log line every 4 samples
-		logCount++;
-		if(logCount>=4) {write_log_file(); logCount=0;}
 
 		//sleep
 		nanosleep(&timermain, (struct timespec *)NULL);
@@ -286,11 +287,12 @@ void guidance()
 	theta_d_b = theta_d + theta_wind;
 	theta_b = theta_wind - theta + PI/2;
 	
-	if (sig == 0)  { findAngle(); }
-	else {
-		theta_d1_b = theta_d_b;
-		sig1 = sig;
-	}
+	//if (sig == 0)  { findAngle(); }
+	//else {
+		//theta_d1_b = theta_d_b;
+		//sig1 = sig;
+	//}
+findAngle();
 	printf("theta_d1: %4.1f deg. \n",theta_d1*180/PI);
 
 	if (sig1 == 1) { chooseManeuver();  }
@@ -360,6 +362,7 @@ void findAngle()
 	    theta_d1_b = PI*3/2;
 		sig1 = 0;
 		printf(">> debug 1 \n");
+		fa_debug=1;
 	}
 	else
 	{
@@ -369,6 +372,7 @@ void findAngle()
 			theta_d1_b = theta_LOS;
 			sig1 = 1;
 			printf(">> debug 2 \n");
+			fa_debug=2;
 		}
 		else
 		{
@@ -378,20 +382,20 @@ void findAngle()
 
 			if (theta_d_b >= atan2(cimag(Xl),creal(Xl))-PI/36  && theta_d_b <= atan2(cimag(Xl),creal(Xl))+PI/36 )
 			{
-				if (creal(X_b) < a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 3 \n"); sig1=1;}     
-				else { theta_d1_b = theta_d_b; printf(">> debug 4 \n"); sig1=0;}
+				if (creal(X_b) < a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 3 \n"); fa_debug=3; sig1=1;}     
+				else { theta_d1_b = theta_d_b; printf(">> debug 4 \n"); fa_debug=4; sig1=0;}
 		    } 
 			else
 			{
 				if (  (theta_d_b >= (atan2(cimag(Xr),creal(Xr))-(PI/36)))  &&  (theta_d_b <= (atan2(cimag(Xr),creal(Xr))+(PI/36))) )
 				{
-					if (creal(X_b) > a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 5 \n"); sig1=1;}
-					else { theta_d1_b = theta_d_b; printf(">> debug 6 \n"); sig1=0;}
+					if (creal(X_b) > a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 5 \n"); fa_debug=5; sig1=1;}
+					else { theta_d1_b = theta_d_b; printf(">> debug 6 \n"); fa_debug=6; sig1=0;}
 				}
 				else
 				{
-					if(cabs(theta_l) < cabs(theta_r)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 7 \n"); sig1=1;}
-					else { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 8 \n"); sig1=1;}
+					if(cabs(theta_l) < cabs(theta_r)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); printf(">> debug 7 \n"); fa_debug=7; sig1=1;}
+					else { theta_d1_b = atan2(cimag(Xr),creal(Xr)); printf(">> debug 8 \n"); fa_debug=8; sig1=1;}
 				}
 			}
 		}
@@ -466,7 +470,7 @@ void performManeuver()
 	switch(sig2)
 	{
 		case 2:  // Tack / course change
-			if (      ((theta_d1_b-PI/4) < theta_b) && (theta_b < (theta_d1_b+PI/4))  )  // If heading is close to desired heading
+			if (      ((theta_d1_b-PI/3) < theta_b) && (theta_b < (theta_d1_b+PI/3))  )  // If heading is close to desired heading
 			{
 				sig3 = 0; // As soon as we’re close to the desired heading, the jibe is finished and the boat will head for theta_d1.
 			}
@@ -476,7 +480,7 @@ void performManeuver()
 			}
 			break;
 		case 3:  // Jibe right
-			if ((theta_d1_b-PI/4) < theta_b && theta_b < (theta_d1_b+PI/3))  // If heading is close to desired heading
+			if ((theta_d1_b-PI/3) < theta_b && theta_b < (theta_d1_b+PI/3))  // If heading is close to desired heading
 			{
 				sig3 = 0; // As soon as we’re close to the desired heading, the jibe is finished and the boat will head for theta_d1.
 				//disp('stop jibe left')
@@ -487,7 +491,7 @@ void performManeuver()
 			}
 			break;
 		case 4:  // Jibe left
-			if ((theta_d1_b-PI/4) < theta_b && theta_b < (theta_d1_b+PI/3))  // If heading is close to desired heading
+			if ((theta_d1_b-PI/3) < theta_b && theta_b < (theta_d1_b+PI/3))  // If heading is close to desired heading
 			{
 				sig3 = 0; // As soon as we’re close to the desired heading, the jibe is finished and the boat will head for theta_d1.
 				//disp('stop jibe right')
@@ -556,8 +560,8 @@ void rudder_pid_controller() {
 	}
 	
 	Rudder_Desired_Angle = round(temp_ang);
-	if(Rudder_Desired_Angle > 45) {Rudder_Desired_Angle=45; }
-	if(Rudder_Desired_Angle < -45) {Rudder_Desired_Angle=-45; }
+	if(Rudder_Desired_Angle > 35) {Rudder_Desired_Angle=35; }
+	if(Rudder_Desired_Angle < -35) {Rudder_Desired_Angle=-35; }
 }
 
 
@@ -649,8 +653,8 @@ void write_log_file() {
 	struct tm * timeinfo;
 	struct dirent * entry;
 
-	// crate a new file at startup or every 10 minutes
-	if(logEntry==0 || logEntry>600) {
+	// crate a new file every MAXLOGLINES
+	if(logEntry==0 || logEntry>=MAXLOGLINES) {
 	
 		//count files in log folder
 		int file_count = 1;
@@ -686,7 +690,7 @@ void write_log_file() {
 	}
 
 	// generate CSV log line
-	sprintf(logline, "%u,%d,%d,%4.1f,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f" \
+	sprintf(logline, "%u,%d,%d,%4.1f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%4.1f,%f,%f,%f,%f,%f,%f,%f" \
 		, (unsigned)time(NULL) \
 		, Navigation_System \
 		, Manual_Control \
@@ -694,6 +698,14 @@ void write_log_file() {
 		, Rudder_Desired_Angle \
 		, Manual_Control_Rudder \
 		, Rudder_Feedback \
+		, sig1
+		, sig2
+		, sig3
+		, fa_debug
+		, theta_d1
+		, theta_d
+		, theta_d1_b
+		, theta_b
 		, Rate ,Heading ,Deviation ,Variation ,Yaw ,Pitch ,Roll ,Latitude ,Longitude ,COG ,SOG ,Wind_Speed ,Wind_Angle \
 		, Point_Start_Lat ,Point_Start_Lon ,Point_End_Lat ,Point_End_Lon \
 	);
@@ -705,5 +717,6 @@ void write_log_file() {
 		fclose(file2);
 	}
 
+	fa_debug=0;
 	logEntry++;
 }
