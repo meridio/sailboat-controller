@@ -4,12 +4,12 @@
  * Interface:
  * RUDDER:
  * 	2 pwm's
- * 	1 outputs for Enable pin on the dual-h-bridge
- * 	1 adc <- Rudder angular sensor
+ * 	2 outputs for Enable pin on the dual-h-bridge
+ * 	1 adc in for Rudder angular sensor
  * 	SAIL:
  * 	2 pwm's
  * 	2 inputs from hall module (LA36)
- * 	1 outputs for Enable pin on the dual-h-bridge
+ * 	2 outputs for Enable pin on the dual-h-bridge
  */
 
 /* TO DO
@@ -21,11 +21,9 @@
 #include "actuators.h"
 
 int desired_angle, desired_length = 0;
-int adc_value = 0; //big enough ?
+int adc_value = 0; 
 int actual_angle = 0;
-int duty = 0;
 int write_delay = 0;
-int rudder_moving = 0;
 
 FILE* file;
 enum directions {
@@ -49,7 +47,6 @@ int main() {
 
 	initFiles();
 	init_io();
-
 	for (;;) {
 		read_desired_rudder_angle_values();
 		read_desired_sail_length_values();
@@ -70,142 +67,52 @@ int main() {
 			file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
 			fprintf(file, "%d", actual_angle);
 			fclose(file);
-		} else
-			write_delay++;
+		} 
+		else
+		write_delay++;
 
-		//decide direction of movement
+		fprintf(stdout, "ABS delta angle %d\n", (actual_angle - desired_angle)); 				//print out difference to desired angle
+		if ((actual_angle - desired_angle) > ERROR_MARGIEN || (actual_angle - desired_angle) < ERROR_MARGIEN) {	//check if it is logical to move
 
-		int delta_angle = actual_angle - desired_angle;
-		if (delta_angle < 0)
-			delta_angle = -delta_angle;
-		fprintf(stdout, "ABS delta angle %d\n", delta_angle);
-
-		if (delta_angle > ERROR_MARGIEN) {
-			//set outputs
+			//decide direction of movement
 			if (actual_angle < desired_angle) {
-				if (rudder_direction != LEFT) {
-					rudder_direction = LEFT;
-					duty = 0;
-					fprintf(stdout, "Going LEFT\n");
+				fprintf(stdout, "actual_angle < desired_angle\n");					//print info
+				if (rudder_direction != LEFT) {								//check if directions was changed
+					rudder_direction = LEFT;							//set new direction
+					ramp_up_rudder_left(find_rudder_duty(actual_angle, desired_angle));		//ramp up rudder left to desired duty
 				}
-				/*EN bridge A*/
-				system("echo 1 > /sys/class/gpio/gpio171/value");
-				system("echo 1 > /sys/class/gpio/gpio172/value");
-
-				fprintf(stdout, "actual_angle < desired_angle\n");
-			} else if (actual_angle > desired_angle) {
-				if (rudder_direction != RIGHT) {
-					rudder_direction = RIGHT;
-					duty = 0;
-					fprintf(stdout, "Going RIGHT\n");
+				else{
+					move_rudder_left(find_rudder_duty(actual_angle, desired_angle));		//set new speed of rudder to desired duty
 				}
-				/*EN bridge A*/
-				system("echo 1 > /sys/class/gpio/gpio171/value");
-				system("echo 1 > /sys/class/gpio/gpio172/value");
-
-				fprintf(stdout, "actual_angle > desired_angle\n");
-			} else {
-				fprintf(stdout, "actual_angle = desired_angle!!!\n");
-				if (rudder_direction != NEUTRAL) {
-					rudder_direction = NEUTRAL;
-					duty = 0;
-					rudder_moving = 0;
+				
+			} 
+			else if (actual_angle > desired_angle) {
+				fprintf(stdout, "actual_angle > desired_angle\n");					//print info
+				if (rudder_direction != RIGHT) {							//check if directions was changed
+					rudder_direction = RIGHT;							//set new direction
+					ramp_up_rudder_right(find_rudder_duty(actual_angle, desired_angle));		//ramp up rudder right to desired duty
+				}
+				else{
+					move_rudder_right(find_rudder_duty(actual_angle, desired_angle));		//set new speed of rudder to desired duty
+				}	
+			} 
+			else {
+				fprintf(stdout, "actual_angle = desired_angle!!!\n");					//print info
+				if (rudder_direction != NEUTRAL) {							//check if rudder were in neutral
+					rudder_direction = NEUTRAL;							//set rudder to neutral
 					fprintf(stdout, "Going NEUTRAL\n");
-
-					fprintf(stdout, "duty: %d\n", duty);
-
-					file = fopen("/dev/pwm10", "w");
-					fprintf(file, "%d", duty);
-					fclose(file);
-					file = fopen("/dev/pwm11", "w");
-					fprintf(file, "%d", duty);
-					fclose(file);
-				}
-
-			}
-
-			//ramp PWM up slowly
-			if (rudder_direction == NEUTRAL) {
-				/*set pwm duty = duty variable*/
-			} else if (rudder_direction != NEUTRAL) {
-
-				if (rudder_direction == LEFT) {
-					file = fopen("/dev/pwm10", "w");
-					fprintf(file, "%d", 0);
-					fclose(file);
-					if (rudder_moving == 0) {
-						while (duty < MAX_DUTY) {
-							/*set pwm duty = duty variable*/
-							duty += 10;
-							fprintf(stdout, "duty: %d\n", duty);
-
-							file = fopen("/dev/pwm11", "w");
-							fprintf(file, "%d", duty);
-							fclose(file);
-							rudder_moving = 1;
-							sleep_ms(5);
-						}
-					}
-					if (delta_angle < 5) {
-						duty = 20;
-					} else if (delta_angle < 10) {
-						duty = 30;
-					} else {
-						duty = MAX_DUTY;
-					}
-					file = fopen("/dev/pwm11", "w");
-					fprintf(file, "%d", duty);
-					fclose(file);
-				} else if (rudder_direction == RIGHT) {
-					file = fopen("/dev/pwm11", "w");
-					fprintf(file, "%d", 0);
-					fclose(file);
-					if (rudder_moving == 0) {
-						while (duty < MAX_DUTY) {
-							/*set pwm duty = duty variable*/
-							duty += 10;
-							fprintf(stdout, "duty: %d\n", duty);
-
-							file = fopen("/dev/pwm10", "w");
-							fprintf(file, "%d", duty);
-							fclose(file);
-							rudder_moving = 1;
-							sleep_ms(5);
-						}
-					}
-
-					if (delta_angle < 5) {
-						duty = 20;
-					} else if (delta_angle < 10) {
-						duty = 30;
-					} else {
-						duty = MAX_DUTY;
-					}
-
-					file = fopen("/dev/pwm10", "w");
-					fprintf(file, "%d", duty);
-					fclose(file);
+'					stop_rudder();									//stop the rudder and prepare for ramp up
 				}
 			}
-		} else {
-			//set outputs low/high?
-			/*PWM duty = 0*/
+		} 
+		else {
+			//set outputs low/high? 
 			fprintf(stdout, "delta angle < ERROR MARGIEN\n");
-			duty = 0;
-			fprintf(stdout, "duty: %d\n", duty);
-
-			file = fopen("/dev/pwm11", "w");
-			fprintf(file, "%d", duty);
-			fclose(file);
-			file = fopen("/dev/pwm10", "w");
-			fprintf(file, "%d", duty);
-			fclose(file);
+			stop_rudder();											//stop rudder in case of error margien
 
 		}
-
-		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n");
+		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n");							//end
 		sleep_ms(100);
-
 	}
 	return 0;
 }
@@ -248,6 +155,9 @@ void init_io() {
 	system("echo out > /sys/class/gpio/gpio171/direction");
 	system("echo out > /sys/class/gpio/gpio172/direction");
 
+	system("echo 1 > /sys/class/gpio/gpio171/value");
+	system("echo 1 > /sys/class/gpio/gpio172/value");
+
 	//install pwm module
 	system("insmod pwm.ko");
 
@@ -255,7 +165,6 @@ void init_io() {
 
 void read_desired_rudder_angle_values() {
 	fprintf(stdout, "reading desired angle\n");
-
 	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "r");
 	fscanf(file, "%d", &desired_angle);
 	fclose(file);
@@ -264,12 +173,62 @@ void read_desired_rudder_angle_values() {
 
 void read_desired_sail_length_values() {
 	fprintf(stdout, "reading desired length\n");
-
 	file = fopen("/tmp/sailboat/Navigation_System_Sail", "r");
 	fscanf(file, "%d", &desired_length);
 	fclose(file);
-
 	fprintf(stdout, "desired length: %d\n", desired_length);
+}
+void move_rudder_left(int duty){
+	file = fopen("/dev/pwm10", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	file = fopen("/dev/pwm11", "w");
+	fprintf(file, "%d", duty);
+	fclose(file);
+	fprintf(stdout, "going left, duty: %d\n", duty);
+}
+void move_rudder_right(int duty){
+	file = fopen("/dev/pwm11", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	file = fopen("/dev/pwm10", "w");
+	fprintf(file, "%d", duty);
+	fclose(file);
+	fprintf(stdout, "going right, duty: %d\n", duty);
+}
+void ramp_up_rudder_left(int final_duty){
+	for(int duty = 0; duty <= final_duty; duty += 10) {
+		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
+		move_rudder_left(duty)
+		sleep_ms(5);
+	}
+}
+void ramp_up_rudder_right(int final_duty){
+	for(int duty = 0; duty <= final_duty; duty += 10) {
+		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
+		move_rudder_right(duty)
+		sleep_ms(5);
+	}
+}
+void stop_rudder(void){
+	file = fopen("/dev/pwm11", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	file = fopen("/dev/pwm10", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	fprintf(stdout, "rudder stopped");
+	sleep_ms(5);
+}
+
+int find_rudder_duty(int actual_angle, int desired_angle){
+	int duty = MAX_DUTY;										//setting duty to highest speed
+	if ((actual_angle - desired_angle) < 5 || (actual_angle - desired_angle) < -5) {		//check if within 5 degrees of desired angle 
+		duty = 20;										//setting duty to lowerst speed
+	} 
+	else if ((actual_angle - desired_angle) < 10 || (actual_angle - desired_angle) < -10) {		//check if within 10 degrees of desired angle 
+		duty = 30;										//setting duty to lower speed 
+	}
 }
 
 void sleep_ms(int ms) {
