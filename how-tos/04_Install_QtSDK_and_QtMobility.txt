@@ -1,0 +1,36 @@
+
+-- Download QtSDK (with Qt 4.8) from Nokia developer website:
+link: http://www.developer.nokia.com/info/sw.nokia.com/id/da8df288-e615-443d-be5c-00c8a72435f8/Qt_SDK.html
+
+
+-- Install QtSDK
+$ cd ~/Downloads
+$ chmod +x QtSdk-offline-linux-x86_64-v1.2.1.run
+$ ./QtSdk-offline-linux-x86_64-v1.2.1.run
+
+
+-- Get Qt Mobility source code 
+$ cd ~
+$ git clone git://gitorious.org/qt-mobility/qt-mobility.git
+$ cd qt-mobility
+
+
+-- Edit PATH environmental variable 
+$ PATH=~/QtSDK/Desktop/Qt/4.8.1/gcc/bin:$PATH
+
+	
+-- Configure QtMobility 
+$ ./configure -modules location 
+
+
+-- Compile QtMobility 
+$ make
+
+
+-- Install QtMobility
+$ sudo make install
+
+
+
+
+
