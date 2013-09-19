@@ -24,6 +24,8 @@ int desired_angle, desired_length = 0;
 int adc_value = 0;
 int actual_angle = 0;
 int write_delay = 0;
+int duty = 0;
+
 
 FILE* file;
 enum directions {
@@ -35,16 +37,21 @@ int rudder_direction, sail_direction, last_rudder_direction = NEUTRAL;
 #define 	CONVERTION_VALUE 	0.11	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
 #define 	ERROR_MARGIN 		2
-#define 	MAX_DUTY 			60
+#define 	MAX_DUTY 		60
 
 void init_io();
 void initFiles();
 void read_desired_rudder_angle_values();
 void read_desired_sail_length_values();
 void sleep_ms();
+int find_rudder_duty(int delta_angle);
+void stop_rudder(void);
+void ramp_up_rudder_right(int final_duty);
+void ramp_up_rudder_left(int final_duty);
+void move_rudder_right(int duty);
+void move_rudder_left(int duty);
 
 int main() {
-
 	initFiles();
 	init_io();
 	for (;;) {
@@ -80,22 +87,18 @@ int main() {
 				fprintf(stdout, "actual_angle < desired_angle\n"); //print info
 				if (rudder_direction != LEFT) { //check if directions was changed
 					rudder_direction = LEFT; //set new direction
-					ramp_up_rudder_left(
-							find_rudder_duty(actual_angle, desired_angle)); //ramp up rudder left to desired duty
+					ramp_up_rudder_left(find_rudder_duty(delta_angle)); //ramp up rudder left to desired duty
 				} else {
-					move_rudder_left(
-							find_rudder_duty(actual_angle, desired_angle)); //set new speed of rudder to desired duty
+					move_rudder_left(find_rudder_duty(delta_angle)); //set new speed of rudder to desired duty
 				}
 
 			} else if (actual_angle > desired_angle) {
 				fprintf(stdout, "actual_angle > desired_angle\n"); //print info
 				if (rudder_direction != RIGHT) { //check if directions was changed
 					rudder_direction = RIGHT; //set new direction
-					ramp_up_rudder_right(
-							find_rudder_duty(actual_angle, desired_angle)); //ramp up rudder right to desired duty
+					ramp_up_rudder_right(find_rudder_duty(delta_angle)); //ramp up rudder right to desired duty
 				} else {
-					move_rudder_right(
-							find_rudder_duty(actual_angle, desired_angle)); //set new speed of rudder to desired duty
+					move_rudder_right(find_rudder_duty(delta_angle)); //set new speed of rudder to desired duty
 				}
 			} else {
 				fprintf(stdout, "actual_angle = desired_angle!!!\n"); //print info
@@ -178,35 +181,35 @@ void read_desired_sail_length_values() {
 	fclose(file);
 	fprintf(stdout, "desired length: %d\n", desired_length);
 }
-void move_rudder_left(int duty) {
+void move_rudder_left(int duty_loc) {
 	file = fopen("/dev/pwm10", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
 	file = fopen("/dev/pwm11", "w");
-	fprintf(file, "%d", duty);
+	fprintf(file, "%d", duty_loc);
 	fclose(file);
-	fprintf(stdout, "going left, duty: %d\n", duty);
+	fprintf(stdout, "going left, duty: %d\n", duty_loc);
 }
-void move_rudder_right(int duty) {
+void move_rudder_right(int duty_loc) {
 	file = fopen("/dev/pwm11", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
 	file = fopen("/dev/pwm10", "w");
-	fprintf(file, "%d", duty);
+	fprintf(file, "%d", duty_loc);
 	fclose(file);
-	fprintf(stdout, "going right, duty: %d\n", duty);
+	fprintf(stdout, "going right, duty: %d\n", duty_loc);
 }
-void ramp_up_rudder_left(int final_duty) {
-	for (int duty = 0; duty <= final_duty; duty += 10) {
+void ramp_up_rudder_left(int final_duty) {	
+	for (duty = 0; duty <= final_duty; duty += 10) {
 		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
-		move_rudder_left(duty)
+		move_rudder_left(duty);
 		sleep_ms(5);
 	}
 }
 void ramp_up_rudder_right(int final_duty) {
-	for (int duty = 0; duty <= final_duty; duty += 10) {
+	for (duty = 0; duty <= final_duty; duty += 10) {
 		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
-		move_rudder_right(duty)
+		move_rudder_right(duty);
 		sleep_ms(5);
 	}
 }
@@ -221,15 +224,16 @@ void stop_rudder(void) {
 	sleep_ms(5);
 }
 
-int find_rudder_duty(int actual_angle, int desired_angle) {
-	int duty = MAX_DUTY; //setting duty to highest speed
-	if ((actual_angle - desired_angle) < 5
-			|| (actual_angle - desired_angle) < -5) { //check if within 5 degrees of desired angle
+int find_rudder_duty(int delta_angle) {
+	duty = MAX_DUTY; //setting duty to highest speed
+	fprintf(stdout, "MD: %d\n", MAX_DUTY);
+	if ((delta_angle) < 5) { //check if within 5 degrees of desired angle
 		duty = 20; //setting duty to lowerst speed
-	} else if ((actual_angle - desired_angle) < 10
-			|| (actual_angle - desired_angle) < -10) { //check if within 10 degrees of desired angle
+	} else if ((delta_angle) < 10) { //check if within 10 degrees of desired angle
 		duty = 30; //setting duty to lower speed
 	}
+	fprintf(stdout, "MD result: %d\n", duty);
+	return duty;
 }
 
 void sleep_ms(int ms) {
