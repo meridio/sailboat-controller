@@ -17,6 +17,11 @@ echo 0 > /tmp/sailboat/Point_Start_Lon
 echo 0 > /tmp/sailboat/Point_End_Lat
 echo 0 > /tmp/sailboat/Point_End_Lon
 
+echo 0 > /tmp/sailboat/Area_Center_Lat
+echo 0 > /tmp/sailboat/Area_Center_Lon
+echo 700 > /tmp/sailboat/Area_Side
+echo 50  > /tmp/sailboat/Area_Interval
+
 echo 0 > /tmp/sailboat/Guidance_Heading
 
 echo 20 > /tmp/sailboat/Rudder_Feedback

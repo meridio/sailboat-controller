@@ -13,31 +13,31 @@
 
 #define MAINSLEEP_SEC	0		// seconds
 #define MAINSLEEP_MSEC	250		// milliseconds
-#define MAXLOGLINES		10000
+#define MAXLOGLINES	10000
 
-#define PI 				3.14159265
+#define PI 		3.14159265
 
 #define TACKINGRANGE 	100		// meters
 #define RADIUSACCEPTED	20		// meters
-#define CONVLON			64078	// meters per degree
-#define CONVLAT			110742	// meters per degree
+#define CONVLON		64078		// meters per degree
+#define CONVLAT		110742		// meters per degree
 
-#define JIBE_ANGLE		40			// [degrees]  Rudder angle while jibing
-#define theta_nogo		55*PI/180	// [radiants] Angle of nogo zone, compared to wind direction
-#define v_min 			0.1	  		// [Km/h] Min velocity for tacking
+#define JIBE_ANGLE	40		// [degrees]  Rudder angle while jibing
+#define theta_nogo	55*PI/180	// [radiants] Angle of nogo zone, compared to wind direction
+#define v_min 		0.1	  	// [Km/h] Min velocity for tacking
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
 #define RATEOFTURN_MAX	36		// [degrees/second]
 #define dHEADING_MAX	10		// [degrees] deviation, before rudder PI acts
-#define GAIN_P 			-1
-#define GAIN_I 			0
+#define GAIN_P 		-1
+#define GAIN_I 		0
 
 
 FILE* file;
 float Rate=0, Heading=0, Deviation=0, Variation=0, Yaw=0, Pitch=0, Roll=0;
 float Latitude=0, Longitude=0, COG=0, SOG=0, Wind_Speed=0, Wind_Angle=0;
-float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
-int   Rudder_Desired_Angle=0, Manual_Control_Rudder=0, Manual_Control_Sail=0, Rudder_Feedback=0;
+float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0, Area_Center_Lat=0, Area_Center_Lon=0;
+int   Rudder_Desired_Angle=0, Manual_Control_Rudder=0, Manual_Control_Sail=0, Rudder_Feedback=0, Area_Side=0, Area_Interval=0;
 int   Navigation_System=0, Manual_Control=0;
 int   logEntry=0, logCount=0, fa_debug=0;
 char  logfile[50];
@@ -54,7 +54,7 @@ void write_log_file();
 float _Complex X, X_T, X_T_b, X_b, X0;
 float integratorSum=0, Guidance_Heading=0;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0;
-int	  sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
+int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
 
 void guidance();
 void findAngle();
@@ -139,18 +139,22 @@ void initfiles() {
 	system("mkdir -p /tmp/sailboat");
 	system("mkdir -p sailboat-log/");
 
-	system("[ ! -f /tmp/sailboat/Navigation_System ] 		&& echo 0 > /tmp/sailboat/Navigation_System");
+	system("[ ! -f /tmp/sailboat/Navigation_System ] 	&& echo 0 > /tmp/sailboat/Navigation_System");
 	system("[ ! -f /tmp/sailboat/Navigation_System_Rudder ] && echo 0 > /tmp/sailboat/Navigation_System_Rudder");
 	system("[ ! -f /tmp/sailboat/Navigation_System_Sail ] 	&& echo 0 > /tmp/sailboat/Navigation_System_Sail");
-	system("[ ! -f /tmp/sailboat/Manual_Control ] 			&& echo 0 > /tmp/sailboat/Manual_Control");
+	system("[ ! -f /tmp/sailboat/Manual_Control ] 		&& echo 0 > /tmp/sailboat/Manual_Control");
 	system("[ ! -f /tmp/sailboat/Manual_Control_Rudder ] 	&& echo 0 > /tmp/sailboat/Manual_Control_Rudder");
-	system("[ ! -f /tmp/sailboat/Manual_Control_Sail ] 		&& echo 0 > /tmp/sailboat/Manual_Control_Sail");
-	system("[ ! -f /tmp/sailboat/Point_Start_Lat ] 			&& echo 0 > /tmp/sailboat/Point_Start_Lat");
-	system("[ ! -f /tmp/sailboat/Point_Start_Lon ] 			&& echo 0 > /tmp/sailboat/Point_Start_Lon");
-	system("[ ! -f /tmp/sailboat/Point_End_Lat ] 			&& echo 0 > /tmp/sailboat/Point_End_Lat");
-	system("[ ! -f /tmp/sailboat/Point_End_Lon ] 			&& echo 0 > /tmp/sailboat/Point_End_Lon");
-	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 		&& echo 0 > /tmp/sailboat/Guidance_Heading");
-	system("[ ! -f /tmp/sailboat/Rudder_Feedback ] 			&& echo 0 > /tmp/sailboat/Rudder_Feedback");
+	system("[ ! -f /tmp/sailboat/Manual_Control_Sail ] 	&& echo 0 > /tmp/sailboat/Manual_Control_Sail");
+	system("[ ! -f /tmp/sailboat/Point_Start_Lat ] 		&& echo 0 > /tmp/sailboat/Point_Start_Lat");
+	system("[ ! -f /tmp/sailboat/Point_Start_Lon ] 		&& echo 0 > /tmp/sailboat/Point_Start_Lon");
+	system("[ ! -f /tmp/sailboat/Point_End_Lat ] 		&& echo 0 > /tmp/sailboat/Point_End_Lat");
+	system("[ ! -f /tmp/sailboat/Point_End_Lon ] 		&& echo 0 > /tmp/sailboat/Point_End_Lon");
+	system("[ ! -f /tmp/sailboat/Area_Center_Lat ] 		&& echo 0 > /tmp/sailboat/Area_Center_Lat");
+	system("[ ! -f /tmp/sailboat/Area_Center_Lon ] 		&& echo 0 > /tmp/sailboat/Area_Center_Lon");
+	system("[ ! -f /tmp/sailboat/Area_Side ] 		&& echo 0 > /tmp/sailboat/Area_Side");
+	system("[ ! -f /tmp/sailboat/Area_Interval ] 		&& echo 0 > /tmp/sailboat/Area_Interval");
+	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 	&& echo 0 > /tmp/sailboat/Guidance_Heading");
+	system("[ ! -f /tmp/sailboat/Rudder_Feedback ] 		&& echo 0 > /tmp/sailboat/Rudder_Feedback");
 }
 
 /*
@@ -158,12 +162,14 @@ void initfiles() {
  *
  *	[Navigation System] 
  *		- [0] Boat in IDLE status
- *		- [1] Control System ON, Rudder under control of MCU
+ *		- [1] Control System ON, Sailing to the waypoint
+ *		- [2] Control System ON, Scanning Area
+ *		- [3] Control System ON, Mantaining upwind position
  *	[Manual Control]
  *		- [0] OFF
- *		- [1] User takes control of the rudder position
+ *		- [1] User takes control of sail and rudder positions
  *
- *	if Manual_Control on read the following values:
+ *	if Manual_Control is ON, read the following values:
  *		- [Manual_Control_Rudder] : user value for desired RUDDER angle [-30.0 to 30.0]
  *		- [Manual_Control_Sail]   : user value for desired SAIL angle 
  */
@@ -195,7 +201,7 @@ void check_system_status() {
 
 /*
  *	Move the rudder to the desired position.
- *	Write the desired angle to a file [] to be handled by another process 
+ *	Write the desired angle to a file [Navigation_System_Rudder] to be handled by another process 
  */
 void move_rudder(int angle) {
 	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "w");
