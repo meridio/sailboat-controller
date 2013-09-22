@@ -290,7 +290,7 @@ void guidance()
 	
 	X_b = ccos(atan2(cimag(X),creal(X))+theta_wind)*cabs(X) + 1*I*(csin(atan2(cimag(X),creal(X))+theta_wind)*cabs(X));
 
-	theta_d_b = theta_d + theta_wind;
+	// theta_d_b = theta_d + theta_wind; 		<- This is wrong; should be: theta_d_b = theta_d1_b at the end of guidance system.
 	theta_b = theta_wind - theta + PI/2;
 	
 	//if (sig == 0)  { findAngle(); }
@@ -308,6 +308,9 @@ findAngle();
 	else {	sig3 = sig2; }
 
 	printf("SIG1: [%d] - SIG2: [%d] - SIG3: [%d] \n",sig1, sig2, sig3);
+
+	// Updating the history angle, telling the guidance heading from last iteration
+	theta_d_b = theta_d1_b;
 	
 	// Inverse turning matrix
 	theta_d1 = theta_d1_b-theta_wind;
