@@ -22,6 +22,8 @@ int voltage_battey = 0;						//used for storring the battery voltage level
 int average_voltage_battey = 0;				 	//used for storring the average battery voltage level
 
 int loop_counter = 0;
+int logEntry = 0;
+char logfile[50];
 
 FILE* file;
 
@@ -33,12 +35,14 @@ FILE* file;
 #define 	electronic_voltage_level		4.85	// check if value stays here
 #define 	number_of_measurements_per_average 	10
 #define 	measurements_measurering_speed 		100	//in ms
+#define		MAXLOGLINES				10000
 
 void init_io();
 void initFiles();
 int read_complete_system_current(); 
 int read_electronic_system_current(); 
 int read_battery_voltage_level(); 
+void write_log_file();
 
 
 int main() {
@@ -69,7 +73,7 @@ int main() {
 		fprintf(stdout, "Electronic comsuption: %d [W] \n", electronic_watt);
 		fprintf(stdout, "-------------------------------------------- \n");
 		//store in file
-		//write_log_file();
+		write_log_file();
 	}
 	return 0;
 }
@@ -80,6 +84,7 @@ int main() {
 void initFiles() {
 	fprintf(stdout, "file init\n");
 	system("mkdir /tmp/current_sensors");
+	system("mkdir -p sailboat-energy/");
 }
 
 void init_io() {
@@ -87,22 +92,43 @@ void init_io() {
 }
 
 int read_complete_system_current(){
-	int adc = 10;	//do sensor stuff here
+		int adc = 0;
+
+		/*ADC READ*/
+		fprintf(stdout, "adc reading\n");
+		file = fopen("/sys/class/hwmon/hwmon0/device/in4_input", 			"r");
+		fscanf(file, "%d", &adc);
+		fclose(file);
+
 	return (adc-I_complete_offset)*I_complete_gain;	
 }
 
 int read_electronic_system_current(){
 	int adc = 15;	//do sensor stuff here
+
+	/*ADC READ*/
+	fprintf(stdout, "adc reading\n");
+	file = fopen("/sys/class/hwmon/hwmon0/device/in5_input", 			"r");
+	fscanf(file, "%d", &adc);
+	fclose(file);
+
 	return (adc-I_electronic_offset)*I_electronic_gain ;
 } 
 
 int read_battery_voltage_level(){
 	int adc = 10;	//do sensor stuff here
-	return adc;
+
+	/*ADC READ*/
+	fprintf(stdout, "adc reading\n");
+	file = fopen("/sys/class/hwmon/hwmon0/device/in6_input", 			"r");
+	fscanf(file, "%d", &adc);
+	fclose(file);
+
+	return adc*V_Gain;
 }
 
 
-/*void write_log_file() {
+void write_log_file() {
 
 	FILE* file2;
 	DIR * dirp;
@@ -118,7 +144,7 @@ int read_battery_voltage_level(){
 		//count files in log folder
 		int file_count = 1;
 
-		dirp = opendir("current-log/"); 
+		dirp = opendir("sailboat-energy/"); 
 
 		while ((entry = readdir(dirp)) != NULL) {
 			if (entry->d_type == DT_REG) { 
@@ -128,7 +154,7 @@ int read_battery_voltage_level(){
 		closedir(dirp);
 
 		// calculate filename
-		sprintf(logfile,"sailboat-log/logfile_%.4d",file_count);
+		sprintf(logfile,"sailboat-energy/logfile_%.4d",file_count);
 
 		// create the new file with a verbose time format as first line
 		time ( &rawtime );
@@ -142,7 +168,7 @@ int read_battery_voltage_level(){
 	}
 
 	// generate CSV log line
-	sprintf(logline, "Complete_watt : Electronic_watt : Battery_voltage %d:%d:%d \n",complete_watt,electronic_watt,average_voltage_battey);
+	sprintf(logline, "Complete_watt : Electronic_watt : Battery_voltage : timestamp %d:%d:%d:%u \n",complete_watt,electronic_watt,average_voltage_battey, (unsigned) time(NULL));
 
 	// write to file
 	file2 = fopen(logfile, "a");
@@ -150,7 +176,5 @@ int read_battery_voltage_level(){
 		fprintf(file2, "%s\n", logline);
 		fclose(file2);
 	}
-
-	fa_debug=0;
 	logEntry++;
-}*/
+}

@@ -8,6 +8,7 @@
 #include <sys/time.h>
 #include <math.h>
 #include <time.h>
+#include <dirent.h>
 
 #include <termios.h>
 #include <fcntl.h>
