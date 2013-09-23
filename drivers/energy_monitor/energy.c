@@ -92,13 +92,14 @@ void init_io() {
 }
 
 int read_complete_system_current(){
-		int adc = 0;
+	int adc = 0;
 
-		/*ADC READ*/
-		fprintf(stdout, "adc reading\n");
-		file = fopen("/sys/class/hwmon/hwmon0/device/in4_input", 			"r");
-		fscanf(file, "%d", &adc);
-		fclose(file);
+	/*ADC READ*/
+	fprintf(stdout, "adc reading\n");
+	file = fopen("/sys/class/hwmon/hwmon0/device/in4_input", 			"r");
+	fscanf(file, "%d", &adc);
+	fclose(file);
+	fprintf(stdout, "complete system in4: %d\n", adc);
 
 	return (adc-I_complete_offset)*I_complete_gain;	
 }
@@ -111,6 +112,7 @@ int read_electronic_system_current(){
 	file = fopen("/sys/class/hwmon/hwmon0/device/in5_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
+	fprintf(stdout, "electric system in5: %d\n", adc);
 
 	return (adc-I_electronic_offset)*I_electronic_gain ;
 } 
@@ -123,6 +125,8 @@ int read_battery_voltage_level(){
 	file = fopen("/sys/class/hwmon/hwmon0/device/in6_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
+
+	fprintf(stdout, "voltage in6: %d\n", adc);
 
 	return adc*V_Gain;
 }

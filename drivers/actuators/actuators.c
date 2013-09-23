@@ -42,7 +42,7 @@ int sail_direction = NEUTRAL;
 #define 	ERROR_MARGIN_RUDDER 	2
 #define 	ERROR_MARGIN_SAIL 	5
 #define 	MAX_DUTY_RUDDER		60
-#define 	MAX_DUTY_SAIL		60
+#define 	MAX_DUTY_SAIL		90
 
 void init_io();
 void initFiles();
@@ -82,7 +82,7 @@ int main() {
 		//file = fopen("/sys/class/hwmon/hwmon0/device/in3_input", "r"); 
 		//fscanf(file, "%d", &actual_length);
 		actual_length = 250;
-		fclose(file);
+		//fclose(file);
 
 		//do convertion adc -> angle
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
