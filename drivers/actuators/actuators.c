@@ -23,6 +23,7 @@
 int desired_angle, desired_length = 0;
 int adc_value = 0;
 int actual_angle = 0;
+int actual_length = 0;
 int write_delay = 0;
 int duty = 0;
 
@@ -31,13 +32,17 @@ FILE* file;
 enum directions {
 	RIGHT, LEFT, NEUTRAL, IN, OUT
 };
-int rudder_direction, sail_direction, last_rudder_direction = NEUTRAL;
+
+int rudder_direction = NEUTRAL;
+int sail_direction = NEUTRAL;
 
 //#define 	LIMIT_VALUE 	20
 #define 	CONVERTION_VALUE 	0.11	// Needs to be calibrated!
 #define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
-#define 	ERROR_MARGIN 		2
-#define 	MAX_DUTY 		60
+#define 	ERROR_MARGIN_RUDDER 	2
+#define 	ERROR_MARGIN_SAIL 	5
+#define 	MAX_DUTY_RUDDER		60
+#define 	MAX_DUTY_SAIL		60
 
 void init_io();
 void initFiles();
@@ -45,11 +50,17 @@ void read_desired_rudder_angle_values();
 void read_desired_sail_length_values();
 void sleep_ms();
 int find_rudder_duty(int delta_angle);
+int find_sail_duty(int delta_lenght);
 void stop_rudder(void);
+void stop_sail(void);
 void ramp_up_rudder_right(int final_duty);
 void ramp_up_rudder_left(int final_duty);
-void move_rudder_right(int duty);
-void move_rudder_left(int duty);
+void ramp_up_sail_left(int final_duty);
+void ramp_up_sail_right(int final_duty);
+void move_rudder_right(int duty_loc);
+void move_rudder_left(int duty_loc);
+void move_sail_left(int duty_loc);
+void move_sail_right(int duty_loc);
 
 int main() {
 	initFiles();
@@ -65,9 +76,19 @@ int main() {
 		fscanf(file, "%d", &adc_value);
 		fclose(file);
 
+		//read from sail actual lenght
+		/*File READ*/
+		fprintf(stdout, "reading actual lenght\n"); //add path to lenght
+		//file = fopen("/sys/class/hwmon/hwmon0/device/in3_input", "r"); 
+		//fscanf(file, "%d", &actual_length);
+		actual_length = 250;
+		fclose(file);
+
 		//do convertion adc -> angle
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
 		fprintf(stdout, "actual_angle: %d\n", actual_angle);
+
+
 		//write to disk
 		if (write_delay > 10) {
 			write_delay = 0;
@@ -80,7 +101,7 @@ int main() {
 		if (delta_angle < 0)
 			delta_angle = -delta_angle;
 		fprintf(stdout, "ABS delta angle %d\n", delta_angle); //print out difference to desired angle
-		if (delta_angle > ERROR_MARGIN) { //check if it is logical to move
+		if (delta_angle > ERROR_MARGIN_RUDDER) { //check if it is logical to move
 
 			//decide direction of movement
 			if (actual_angle < desired_angle) {
@@ -114,6 +135,48 @@ int main() {
 			stop_rudder(); //stop rudder in case of error margin
 
 		}
+
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+		int delta_lenght = actual_length - desired_length;
+		if (delta_lenght < 0)
+			delta_lenght = -delta_lenght;
+		if (delta_lenght > ERROR_MARGIN_SAIL) { //check if it is logical to move
+
+			//decide direction of movement
+			if (actual_length < desired_length) {
+				fprintf(stdout, "actual_length < desired_lenght\n"); //print info
+				if (sail_direction != OUT) { //check if directions was changed
+					sail_direction = OUT; //set new direction
+					ramp_up_sail_left(find_sail_duty(delta_lenght)); //ramp up sail left to desired duty
+				} else {
+					move_sail_left(find_sail_duty(delta_lenght)); //set new speed of sail to desired duty
+				}
+
+			} else if (actual_length > desired_length) {
+				fprintf(stdout, "actual_length > desired_lenght\n"); //print info
+				if (sail_direction != IN) { //check if directions was changed
+					sail_direction = IN; //set new direction
+					ramp_up_sail_right(find_sail_duty(delta_lenght)); //ramp up sail right to desired duty
+				} else {
+					move_sail_right(find_sail_duty(delta_lenght)); //set new speed of sail to desired duty
+				}
+			} else {
+				fprintf(stdout, "actual_length = desired_lenght!!!\n"); //print info
+				if (sail_direction != NEUTRAL) { //check if sail were in neutral
+					sail_direction = NEUTRAL; //set sail to neutral
+					fprintf(stdout, "Going NEUTRAL\n");
+					stop_rudder(); //stop the sail and prepare for ramp up
+				}
+			}
+		} else {
+			//set outputs low/high? 
+			fprintf(stdout, "delta angle < ERROR MARGIN\n");
+			stop_sail(); //stop rudder in case of error margin
+
+		}
+
+		////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n"); //end
 		sleep_ms(100);
 	}
@@ -125,7 +188,7 @@ int main() {
  */
 void initFiles() {
 	fprintf(stdout, "file init\n");
-	system("mkdir /tmp/actuators");
+	system("mkdir -p /tmp/actuators");
 	system("echo 0 > /tmp/sailboat/Rudder_Feedback");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Sail");
@@ -188,7 +251,7 @@ void move_rudder_left(int duty_loc) {
 	file = fopen("/dev/pwm11", "w");
 	fprintf(file, "%d", duty_loc);
 	fclose(file);
-	fprintf(stdout, "going left, duty: %d\n", duty_loc);
+	fprintf(stdout, "rudder going left, duty: %d\n", duty_loc);
 }
 void move_rudder_right(int duty_loc) {
 	file = fopen("/dev/pwm11", "w");
@@ -197,18 +260,50 @@ void move_rudder_right(int duty_loc) {
 	file = fopen("/dev/pwm10", "w");
 	fprintf(file, "%d", duty_loc);
 	fclose(file);
-	fprintf(stdout, "going right, duty: %d\n", duty_loc);
+	fprintf(stdout, "rudder going right, duty: %d\n", duty_loc);
+}
+void move_sail_left(int duty_loc) {
+	file = fopen("/dev/pwm8", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	file = fopen("/dev/pwm9", "w");
+	fprintf(file, "%d", duty_loc);
+	fclose(file);
+	fprintf(stdout, "sail going left, duty: %d\n", duty_loc);
+}
+void move_sail_right(int duty_loc) {
+	file = fopen("/dev/pwm9", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	file = fopen("/dev/pwm8", "w");
+	fprintf(file, "%d", duty_loc);
+	fclose(file);
+	fprintf(stdout, "sail going right, duty: %d\n", duty_loc);
 }
 void ramp_up_rudder_left(int final_duty) {	
 	for (duty = 0; duty <= final_duty; duty += 10) {
-		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
-		move_rudder_left(duty);
+		fprintf(stdout, "ramping up rudder ~ duty: %d\n", duty);
+		move_sail_left(duty);
 		sleep_ms(5);
 	}
 }
 void ramp_up_rudder_right(int final_duty) {
 	for (duty = 0; duty <= final_duty; duty += 10) {
-		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
+		fprintf(stdout, "ramping up rudder ~ duty: %d\n", duty);
+		move_rudder_right(duty);
+		sleep_ms(5);
+	}
+}
+void ramp_up_sail_left(int final_duty) {	
+	for (duty = 0; duty <= final_duty; duty += 10) {
+		fprintf(stdout, "ramping up sail ~ duty: %d\n", duty);
+		move_sail_left(duty);
+		sleep_ms(5);
+	}
+}
+void ramp_up_sail_right(int final_duty) {
+	for (duty = 0; duty <= final_duty; duty += 10) {
+		fprintf(stdout, "ramping up sail ~ duty: %d\n", duty);
 		move_rudder_right(duty);
 		sleep_ms(5);
 	}
@@ -223,13 +318,34 @@ void stop_rudder(void) {
 	fprintf(stdout, "rudder stopped");
 	sleep_ms(5);
 }
+void stop_sail(void) {
+	file = fopen("/dev/pwm9", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	file = fopen("/dev/pwm8", "w");
+	fprintf(file, "%d", 0);
+	fclose(file);
+	fprintf(stdout, "sail stopped");
+	sleep_ms(5);
+}
 
 int find_rudder_duty(int delta_angle) {
-	duty = MAX_DUTY; //setting duty to highest speed
-	fprintf(stdout, "MD: %d\n", MAX_DUTY);
+	duty = MAX_DUTY_RUDDER; //setting duty to highest speed
+	fprintf(stdout, "MD: %d\n", MAX_DUTY_RUDDER);
 	if ((delta_angle) < 5) { //check if within 5 degrees of desired angle
 		duty = 20; //setting duty to lowerst speed
 	} else if ((delta_angle) < 10) { //check if within 10 degrees of desired angle
+		duty = 30; //setting duty to lower speed
+	}
+	fprintf(stdout, "MD result: %d\n", duty);
+	return duty;
+}
+int find_sail_duty(int delta_lenght) {
+	duty = MAX_DUTY_SAIL; //setting duty to highest speed
+	fprintf(stdout, "MD: %d\n", MAX_DUTY_SAIL);
+	if ((delta_lenght) < 1) { //check if within 5 degrees of desired angle
+		duty = 20; //setting duty to lowerst speed
+	} else if ((delta_lenght) < 2) { //check if within 10 degrees of desired angle
 		duty = 30; //setting duty to lower speed
 	}
 	fprintf(stdout, "MD result: %d\n", duty);
