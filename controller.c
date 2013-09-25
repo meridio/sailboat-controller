@@ -149,9 +149,7 @@ void initfiles() {
 	system("[ ! -f /tmp/sailboat/Point_Start_Lon ] 		&& echo 0 > /tmp/sailboat/Point_Start_Lon");
 	system("[ ! -f /tmp/sailboat/Point_End_Lat ] 		&& echo 0 > /tmp/sailboat/Point_End_Lat");
 	system("[ ! -f /tmp/sailboat/Point_End_Lon ] 		&& echo 0 > /tmp/sailboat/Point_End_Lon");
-	system("[ ! -f /tmp/sailboat/Area_Center_Lat ] 		&& echo 0 > /tmp/sailboat/Area_Center_Lat");
-	system("[ ! -f /tmp/sailboat/Area_Center_Lon ] 		&& echo 0 > /tmp/sailboat/Area_Center_Lon");
-	system("[ ! -f /tmp/sailboat/Area_Side ] 		&& echo 0 > /tmp/sailboat/Area_Side");
+	system("[ ! -f /tmp/sailboat/Area_VertexNum ] 		&& echo 0 > /tmp/sailboat/VertexNum");
 	system("[ ! -f /tmp/sailboat/Area_Interval ] 		&& echo 0 > /tmp/sailboat/Area_Interval");
 	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 	&& echo 0 > /tmp/sailboat/Guidance_Heading");
 	system("[ ! -f /tmp/sailboat/Rudder_Feedback ] 		&& echo 0 > /tmp/sailboat/Rudder_Feedback");
