@@ -27,11 +27,12 @@ char logfile[50];
 
 FILE* file;
 
-#define 	I_complete_gain 			9	// Needs to be calibrated
-#define 	I_electronic_gain 			9	// Needs to be calibrated
-#define 	I_complete_offset 			0	// Needs to be calibrated
-#define 	I_electronic_offset			0	// Needs to be calibrated
-#define 	V_Gain 					3	// Needs to be calibrated
+#define 	I_complete_gain 			10	// Needs to be calibrated
+#define 	I_electronic_gain 			10	// Needs to be calibrated
+#define 	I_complete_offset 			694	// Needs to be calibrated
+#define 	I_electronic_offset			95	// Needs to be calibrated
+#define 	V_Gain 					10	// Needs to be calibrated
+#define 	Volt_offset				12
 #define 	electronic_voltage_level		4.85	// check if value stays here
 #define 	number_of_measurements_per_average 	10
 #define 	measurements_measurering_speed 		100	//in ms
@@ -99,8 +100,8 @@ int read_complete_system_current(){
 	file = fopen("/sys/class/hwmon/hwmon0/device/in4_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
-	fprintf(stdout, "complete system in4: %d\n", adc);
-
+	fprintf(stdout, "complete system in4-offset: %d\n", adc-I_complete_offset);
+	fprintf(stdout, "complete system current: %d\n", (adc-I_complete_offset)*I_complete_gain);
 	return (adc-I_complete_offset)*I_complete_gain;	
 }
 
@@ -112,8 +113,8 @@ int read_electronic_system_current(){
 	file = fopen("/sys/class/hwmon/hwmon0/device/in5_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
-	fprintf(stdout, "electric system in5: %d\n", adc);
-
+	fprintf(stdout, "electric system in5-offset: %d\n", adc-I_electronic_offset);
+	fprintf(stdout, "electric system current: %d\n", (adc-I_electronic_offset)*I_electronic_gain);
 	return (adc-I_electronic_offset)*I_electronic_gain ;
 } 
 
@@ -126,9 +127,10 @@ int read_battery_voltage_level(){
 	fscanf(file, "%d", &adc);
 	fclose(file);
 
-	fprintf(stdout, "voltage in6: %d\n", adc);
+	fprintf(stdout, "voltage in6-offset: %d\n", adc-Volt_offset);
+	fprintf(stdout, "voltage: %d\n", (adc-Volt_offset)*V_Gain);
 
-	return adc*V_Gain;
+	return (adc-Volt_offset)*V_Gain;
 }
 
 
