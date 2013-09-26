@@ -14,12 +14,12 @@
 
 #include "energy.h"
 
-int complete_watt = 0;						//used for storring the full system consuption
-int complete_current = 0;					//used for storring the full system current 
-int electronic_current = 0;					//used for storring the basic electronic current
-int electronic_watt = 0;					//used for storring the basic electronic consuption
-int voltage_battey = 0;						//used for storring the battery voltage level
-int average_voltage_battey = 0;				 	//used for storring the average battery voltage level
+double complete_watt = 0;						//used for storring the full system consuption
+double complete_current = 0;					//used for storring the full system current 
+double electronic_current = 0;					//used for storring the basic electronic current
+double electronic_watt = 0;					//used for storring the basic electronic consuption 
+double voltage_battey = 0;						//used for storring the battery voltage level
+double average_voltage_battey = 0;				 	//used for storring the average battery voltage level
 
 int loop_counter = 0;
 int logEntry = 0;
@@ -27,11 +27,11 @@ char logfile[50];
 
 FILE* file;
 
-#define 	I_complete_gain 			10	// Needs to be calibrated
-#define 	I_electronic_gain 			10	// Needs to be calibrated
-#define 	I_complete_offset 			694	// Needs to be calibrated
-#define 	I_electronic_offset			95	// Needs to be calibrated
-#define 	V_Gain 					10	// Needs to be calibrated
+#define 	I_complete_gain 			0.05	// Needs to be calibrated
+#define 	I_electronic_gain 			0.017094	// Needs to be calibrated
+#define 	I_complete_offset 			109	// Needs to be calibrated
+#define 	I_electronic_offset			711	// Needs to be calibrated
+#define 	V_Gain 					0.0103	// Needs to be calibrated
 #define 	Volt_offset				12
 #define 	electronic_voltage_level		4.85	// check if value stays here
 #define 	number_of_measurements_per_average 	10
@@ -40,9 +40,9 @@ FILE* file;
 
 void init_io();
 void initFiles();
-int read_complete_system_current(); 
-int read_electronic_system_current(); 
-int read_battery_voltage_level(); 
+double read_complete_system_current(); 
+double read_electronic_system_current(); 
+double read_battery_voltage_level(); 
 void write_log_file();
 
 
@@ -60,8 +60,8 @@ int main() {
 	 		voltage_battey = read_battery_voltage_level();
 			//calculate the energi usage 
 			average_voltage_battey += voltage_battey;
-			complete_watt += complete_current*voltage_battey;
-			electronic_watt += electronic_current*electronic_voltage_level;  
+			complete_watt += complete_current;//*voltage_battey;
+			electronic_watt += electronic_current;//*electronic_voltage_level;  
 			//sleep between measurements
 			usleep(measurements_measurering_speed * 1000); // sleep value in in microseconds
 		}
@@ -69,9 +69,9 @@ int main() {
 		electronic_watt = electronic_watt/number_of_measurements_per_average;
 		average_voltage_battey = average_voltage_battey/number_of_measurements_per_average;
 		fprintf(stdout, "-------------------------------------------- \n");
-		fprintf(stdout, "Average battery voltage:   %d [W] \n", average_voltage_battey);
-		fprintf(stdout, "Complete comsuption:   %d [W] \n", complete_watt);
-		fprintf(stdout, "Electronic comsuption: %d [W] \n", electronic_watt);
+		fprintf(stdout, "Average battery voltage:   %f [V] \n", average_voltage_battey);
+		fprintf(stdout, "Complete comsuption:   %f [W] \n", complete_watt);
+		fprintf(stdout, "Electronic comsuption: %f [W] \n", electronic_watt);
 		fprintf(stdout, "-------------------------------------------- \n");
 		//store in file
 		write_log_file();
@@ -92,43 +92,43 @@ void init_io() {
 	//configure io
 }
 
-int read_complete_system_current(){
+double read_complete_system_current(){
 	int adc = 0;
 
 	/*ADC READ*/
-	fprintf(stdout, "adc reading\n");
+	//fprintf(stdout, "adc reading\n");
 	file = fopen("/sys/class/hwmon/hwmon0/device/in4_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
-	fprintf(stdout, "complete system in4-offset: %d\n", adc-I_complete_offset);
-	fprintf(stdout, "complete system current: %d\n", (adc-I_complete_offset)*I_complete_gain);
+	//fprintf(stdout, "complete system in4-offset: %d\n", adc-I_complete_offset);
+	//fprintf(stdout, "complete system current: %d\n", (adc-I_complete_offset)*I_complete_gain);
 	return (adc-I_complete_offset)*I_complete_gain;	
 }
 
-int read_electronic_system_current(){
+double read_electronic_system_current(){
 	int adc = 15;	//do sensor stuff here
 
 	/*ADC READ*/
-	fprintf(stdout, "adc reading\n");
+	//fprintf(stdout, "adc reading\n");
 	file = fopen("/sys/class/hwmon/hwmon0/device/in5_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
-	fprintf(stdout, "electric system in5-offset: %d\n", adc-I_electronic_offset);
-	fprintf(stdout, "electric system current: %d\n", (adc-I_electronic_offset)*I_electronic_gain);
+	//fprintf(stdout, "electric system in5-offset: %d\n", adc-I_electronic_offset);
+	//fprintf(stdout, "electric system current: %d\n", (adc-I_electronic_offset)*I_electronic_gain);
 	return (adc-I_electronic_offset)*I_electronic_gain ;
 } 
 
-int read_battery_voltage_level(){
+double read_battery_voltage_level(){
 	int adc = 10;	//do sensor stuff here
 
 	/*ADC READ*/
-	fprintf(stdout, "adc reading\n");
+	//fprintf(stdout, "adc reading\n");
 	file = fopen("/sys/class/hwmon/hwmon0/device/in6_input", 			"r");
 	fscanf(file, "%d", &adc);
 	fclose(file);
 
-	fprintf(stdout, "voltage in6-offset: %d\n", adc-Volt_offset);
-	fprintf(stdout, "voltage: %d\n", (adc-Volt_offset)*V_Gain);
+	//fprintf(stdout, "voltage in6-offset: %d\n", adc-Volt_offset);
+	//fprintf(stdout, "voltage: %f\n", (adc-Volt_offset)*V_Gain);
 
 	return (adc-Volt_offset)*V_Gain;
 }
@@ -174,7 +174,7 @@ void write_log_file() {
 	}
 
 	// generate CSV log line
-	sprintf(logline, "Complete_watt : Electronic_watt : Battery_voltage : timestamp %d:%d:%d:%u \n",complete_watt,electronic_watt,average_voltage_battey, (unsigned) time(NULL));
+	sprintf(logline, "Complete_watt : Electronic_watt : Battery_voltage : timestamp %f:%f:%f:%u \n",complete_watt,electronic_watt,average_voltage_battey, (unsigned) time(NULL));
 
 	// write to file
 	file2 = fopen(logfile, "a");
