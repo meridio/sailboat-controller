@@ -36,8 +36,8 @@ echo "1.2745389" > /tmp/u200/Yaw
 echo "6.8213234" > /tmp/u200/Pitch
 echo "0.4212345" > /tmp/u200/Roll
 
-echo "54.911886" > /tmp/u200/Latitude
-echo "9.782295" > /tmp/u200/Longitude
+echo "54.896884" > /tmp/u200/Latitude
+echo "9.784269" > /tmp/u200/Longitude
 
 echo "108.3454545" > /tmp/u200/COG
 echo "5.8454545" > /tmp/u200/SOG
