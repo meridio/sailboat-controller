@@ -48,6 +48,7 @@ void initfiles();
 void check_system_status();
 void read_weather_station();
 void move_rudder(int angle);
+void move_sail(int angle);
 void read_coordinates();
 void write_log_file();
 
@@ -97,8 +98,11 @@ int main(int argc, char ** argv) {
 			// Values for the RUDDER and SAIL positions are received from the User Interface.
 			// Use [Manual_Control_Rudder] and [Manual_Control_Sail] files to control the actuators.
 
-			// Move the rudder to the desired position
+			// Move the rudder to the user position
 			move_rudder(Manual_Control_Rudder);
+
+			// Move the main sail to the user position
+			move_sail(Manual_Control_Sail);
 
 		} else {
 
@@ -213,6 +217,17 @@ void check_system_status() {
  */
 void move_rudder(int angle) {
 	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "w");
+	if (file != NULL) {	
+		fprintf(file, "%d", angle);	fclose(file);
+	}
+}
+
+/*
+ *	Move the main sail to the desired position.
+ *	Write the desired angle to a file [Navigation_System_Sail] to be handled by another process 
+ */
+void move_sail(int angle) {
+	file = fopen("/tmp/sailboat/Navigation_System_Sail", "w");
 	if (file != NULL) {	
 		fprintf(file, "%d", angle);	fclose(file);
 	}
