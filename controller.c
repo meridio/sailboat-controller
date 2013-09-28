@@ -32,6 +32,8 @@
 #define GAIN_P 		-1
 #define GAIN_I 		0
 
+#include "map_geometry.h"		// custom functions to handle geometry transformations on the map
+
 
 FILE* file;
 float Rate=0, Heading=0, Deviation=0, Variation=0, Yaw=0, Pitch=0, Roll=0;
@@ -49,6 +51,8 @@ void move_rudder(int angle);
 void read_coordinates();
 void write_log_file();
 
+struct timespec timermain;
+
 
 //guidance
 float _Complex X, X_T, X_T_b, X_b, X0;
@@ -63,7 +67,13 @@ void performManeuver();
 void rudder_pid_controller();
 
 
-struct timespec timermain;
+// area waypoints
+int i=0, k=0, nwaypoints=0;
+Point Waypoints[1000];
+
+void calculate_area_waypoints();
+
+
 
 
 int main(int argc, char ** argv) {
@@ -571,6 +581,112 @@ void rudder_pid_controller() {
 	if(Rudder_Desired_Angle < -35) {Rudder_Desired_Angle=-35; }
 }
 
+
+
+
+/*
+ *	Calculate the waypoint positions to map an area defined as a convex polygon
+ */
+void calculate_area_waypoints() {
+	
+	// local variable definitions
+	int interval=0, nvertexes=0, next=0, d=-1, sw=0;
+	double yMin, yMax, xMin, xMax, yRef;
+	Point pw1, pw2, wayp, tmpW;
+	Point tWaypoints[1000];
+	Line lw,lp;
+	char vfile[30];
+	
+	// reset previous waypoints
+	nwaypoints=0;
+
+	// read user values from files
+	file = fopen("/tmp/sailboat/Area_Interval", "r");
+	if (file != NULL) { fscanf(file, "%d", &interval); fclose(file); }
+	file = fopen("/tmp/sailboat/Area_VertexNum", "r");
+	if (file != NULL) { fscanf(file, "%d", &nvertexes); fclose(file); }
+	
+	Point Vertex[nvertexes];
+	for (i=0; i<nvertexes; i++) {
+		sprintf(vfile,"/tmp/sailboat/Area_v%d",i);
+		file = fopen(vfile, "r");
+		if (file != NULL) { fscanf(file, "%lf;%lf", &Vertex[i].x, &Vertex[i].y); fclose(file); }	
+	}
+
+	// convert vertex coordinates to XY plane
+	for (i=0; i<nvertexes; i++) Vertex[i] = convert_xy(Vertex[i]);
+
+	// rotate vertex coordinates accoringly to wind direction
+	for (i=0; i<nvertexes; i++) Vertex[i] = rotate_point(Vertex[i],Wind_Angle);
+
+	// find closest and farthest vertexes
+	yMin=Vertex[0].y; yMax=Vertex[0].y;
+	for (i=1; i<nvertexes; i++) {
+		if (Vertex[i].y < yMin) yMin=Vertex[i].y;
+		if (Vertex[i].y > yMax) yMax=Vertex[i].y;
+	}
+
+	// calculate how many intersecting lines
+	int nlines=floor(abs(yMax-yMin)/interval)+1;
+
+	// for each side of the polygon
+	for (i=0; i<nvertexes; i++) {
+			
+		yRef=yMin;
+		next=i+1; if (next==nvertexes) next=0;
+		xMin=Vertex[i].x;
+		xMax=Vertex[next].x;
+		if (Vertex[i].x > xMax) { xMin=xMax; xMax=Vertex[i].x; }
+		lp=new_line(Vertex[i],Vertex[next]);
+			
+		// for each intersecting line
+		for (k=0; k<nlines; k++) {
+			
+			// find valid intersections
+			pw1=new_point(xMin,yRef);
+			pw2=new_point(xMax,yRef);
+			lw=new_line(pw1,pw2);
+			
+			wayp=find_intersection(lp,lw);
+			
+			if (wayp.x >= xMin && wayp.x <= xMax) {		// in the segment
+				if (wayp.x != 0 || wayp.y != 0) {	// non parallel lines
+					tWaypoints[nwaypoints]=wayp;	// add to temp Array
+					nwaypoints++;
+				}
+			}
+			yRef+= (float) interval;			// rise the bar
+		}
+	}
+		
+	// sort the waypoints by Y ascending
+	qsort(tWaypoints, nwaypoints, sizeof(Point), cmpfunc);
+	
+	// eliminate the first waypoint (duplicated since in the vertex)
+	for (i=1; i<nwaypoints; i++) Waypoints[i-1]=tWaypoints[i];
+	nwaypoints-=1;
+
+	// alternate waypoints by X coordinates (let's do a S-like zig-zag as left-left-right-right oh-yeah)
+	// I hereby name this algorithm "the headless alternated paired bubble sorting" a.k.a. "the zig"	
+	for (i=1; i<nwaypoints; i+=2) {
+
+		if ((d<0) && (Waypoints[i].x > Waypoints[i+1].x)) sw=1;
+		if ((d>0) && (Waypoints[i].x < Waypoints[i+1].x)) sw=1;
+
+		if (sw==1) {
+			tmpW = Waypoints[i];
+			Waypoints[i]   = Waypoints[i+1];
+			Waypoints[i+1] = tmpW;
+		}
+		sw=0; d*=-1;
+	}
+
+	// rotate back the point coordinates for the map
+	for (i=0; i<nwaypoints; i++) Waypoints[i] = rotate_point(Waypoints[i],-1*Wind_Angle);
+
+	// convert coordinates back to Latitude-Longitude
+	for (i=0; i<nwaypoints; i++) Waypoints[i] = convert_latlon(Waypoints[i]);
+}
 
 
 
