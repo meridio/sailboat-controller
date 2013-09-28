@@ -40,7 +40,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0, Ar
 int   Rudder_Desired_Angle=0, Manual_Control_Rudder=0, Manual_Control_Sail=0, Rudder_Feedback=0, Area_Side=0, Area_Interval=0;
 int   Navigation_System=0, Manual_Control=0;
 int   logEntry=0, logCount=0, fa_debug=0;
-char  logfile[50];
+char  logfile1[50],logfile2[50];
 
 void initfiles();
 void check_system_status();
@@ -137,7 +137,7 @@ int main(int argc, char ** argv) {
  */
 void initfiles() {
 	system("mkdir -p /tmp/sailboat");
-	system("mkdir -p sailboat-log/");
+	system("mkdir -p sailboat-log/debug/");
 
 	system("[ ! -f /tmp/sailboat/Navigation_System ] 	&& echo 0 > /tmp/sailboat/Navigation_System");
 	system("[ ! -f /tmp/sailboat/Navigation_System_Rudder ] && echo 0 > /tmp/sailboat/Navigation_System_Rudder");
@@ -648,24 +648,28 @@ void read_weather_station() {
 
 /*
  *	Save all the variables of the navigation system in a log file in /var/tmp/sailboat-log/
- *	Create a new log file every 10 minutes
+ *	Create a new log file every MAXLOGLINES rows
  */
 void write_log_file() {
 
 	FILE* file2;
 	DIR * dirp;
 	char  logline[1000];
+	char  timestp[25];
 
 	time_t rawtime;
-	struct tm * timeinfo;
+	struct tm  *timeinfo;
 	struct dirent * entry;
 
 	// crate a new file every MAXLOGLINES
 	if(logEntry==0 || logEntry>=MAXLOGLINES) {
-	
-		//count files in log folder
-		int file_count = 1;
 
+		// pin pointer
+		file2 = fopen("sailboat-log/current_logfile", "w");
+		if (file2 != NULL) { fprintf(file2, "init"); fclose(file2); }
+				
+		//count files in log folder
+		int file_count = 0;
 		dirp = opendir("sailboat-log/"); 
 
 		while ((entry = readdir(dirp)) != NULL) {
@@ -675,29 +679,29 @@ void write_log_file() {
 		}
 		closedir(dirp);
 
-		// calculate filename
-		sprintf(logfile,"sailboat-log/logfile_%.4d",file_count);
+		// calculate new timestamp
+		time(&rawtime);
+		timeinfo = localtime(&rawtime);
+		strftime(timestp, sizeof timestp, "%Y%m%d_%H%M", timeinfo);
+		
+		// save log filename for other processes
+		file2 = fopen("sailboat-log/current_logfile", "w");
+		if (file2 != NULL) { fprintf(file2, "logfile_%.4d_%s",file_count,timestp); fclose(file2); }
+		
+		// log filename
+		sprintf(logfile1,"sailboat-log/logfile_%.4d_%s",file_count,timestp);
+		sprintf(logfile2,"sailboat-log/debug/debug_%.4d_%s",file_count,timestp);
 
-		// create the new file with a verbose time format as first line
-		time ( &rawtime );
-		timeinfo = localtime ( &rawtime );
-		file2 = fopen(logfile, "w");
-		if (file2 != NULL) {
-			fprintf(file2, "Local time and date: %s", asctime (timeinfo));
-			fclose(file2);
-		}
 		logEntry=1;
 	}
 
 	// read rudder feedback
 	file2 = fopen("/tmp/sailboat/Rudder_Feedback", "r");
-	if (file2 != NULL) {
-		fscanf(file2, "%d", &Rudder_Feedback);	
-		fclose(file2);
-	}
+	if (file2 != NULL) { fscanf(file2, "%d", &Rudder_Feedback); fclose(file2); }
 
-	// generate CSV log line
-	sprintf(logline, "%u,%d,%d,%4.1f,%d,%d,%d,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%4.1f,%f,%f,%f,%f,%f,%f,%f" \
+
+	// generate csv LOG line
+	sprintf(logline, "%u,%d,%d,%.1f,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%f,%f,%.1f,%.3f,%.2f,%.2f,%f,%f,%f,%f" \
 		, (unsigned)time(NULL) \
 		, Navigation_System \
 		, Manual_Control \
@@ -705,24 +709,42 @@ void write_log_file() {
 		, Rudder_Desired_Angle \
 		, Manual_Control_Rudder \
 		, Rudder_Feedback \
-		, sig1
-		, sig2
-		, sig3
-		, fa_debug
-		, theta_d1
-		, theta_d
-		, theta_d1_b
-		, theta_b
-		, Rate ,Heading ,Deviation ,Variation ,Yaw ,Pitch ,Roll ,Latitude ,Longitude ,COG ,SOG ,Wind_Speed ,Wind_Angle \
-		, Point_Start_Lat ,Point_Start_Lon ,Point_End_Lat ,Point_End_Lon \
+		, Rate \
+		, Heading \
+		, Pitch \
+		, Roll \
+		, Latitude \
+		, Longitude \
+		, COG \
+		, SOG \
+		, Wind_Speed \
+		, Wind_Angle \
+		, Point_Start_Lat \
+		, Point_Start_Lon \
+		, Point_End_Lat \
+		, Point_End_Lon \
 	);
+	// write to LOG file
+	file2 = fopen(logfile1, "a");
+	if (file2 != NULL) { fprintf(file2, "%s\n", logline); fclose(file2); }
 
-	// write to file
-	file2 = fopen(logfile, "a");
-	if (file2 != NULL) {
-		fprintf(file2, "%s\n", logline);
-		fclose(file2);
-	}
+
+	// generate csv DEBUG line
+	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f" \
+		, (unsigned)time(NULL) \
+		, sig1 \
+		, sig2 \
+		, sig3 \
+		, fa_debug \
+		, theta_d1 \
+		, theta_d \
+		, theta_d1_b \
+		, theta_b \
+	);
+	// write to DEBUG file
+	file2 = fopen(logfile2, "a");
+	if (file2 != NULL) { fprintf(file2, "%s\n", logline); fclose(file2); }
+	
 
 	fa_debug=0;
 	logEntry++;
