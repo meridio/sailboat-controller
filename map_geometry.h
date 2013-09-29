@@ -40,7 +40,7 @@ Point new_point(double x, double y)
 Point rotate_point(Point p, float angle)
 {
 	Point t;
-	double alpha = angle*(PI/180.0);
+	double alpha = (angle+180)*(PI/180.0);
 	t.x = p.x*cosf(alpha) - p.y*sinf(alpha);
 	t.y = p.x*sinf(alpha) + p.y*cosf(alpha);
 	return t;

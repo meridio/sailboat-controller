@@ -16,6 +16,8 @@ echo 0 > /tmp/sailboat/Point_Start_Lat
 echo 0 > /tmp/sailboat/Point_Start_Lon
 echo 0 > /tmp/sailboat/Point_End_Lat
 echo 0 > /tmp/sailboat/Point_End_Lon
+echo 0 > /tmp/sailboat/Simulated_Lat
+echo 0 > /tmp/sailboat/Simulated_Lon
 
 echo 0 > /tmp/sailboat/Area_VertexNum
 echo 100 > /tmp/sailboat/Area_Interval
