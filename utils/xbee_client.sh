@@ -4,7 +4,7 @@
 # Split the string and overwrite the /tmp/sailboat and /tmp/u200 system files
 
 echo "-> INITIALIZING SERIAL PORT"
-stty -F /dev/ttyUSB0 38400 cread clocal -cstopb -parenb
+stty -F /dev/ttyUSB0 9600 cread clocal -cstopb -parenb
 
 echo "-> INITIALIZING FOLDER STRUCTURE"
 mkdir -p /tmp/sailboat
@@ -17,7 +17,6 @@ sleep 2
 
 while :
 do
-
 	STR=$(tail -n 2 /tmp/xbee_stream | head -1)
 	
 	# [2] Navigation_System
@@ -47,8 +46,12 @@ do
 	# [10] Pitch
 	# [11] Roll
 
+	if [[ -z "$NAV" ]]
+	then
+		NAV=0
+	fi
 
-	if ["$NAV" != "5"]
+	if [ $NAV -ne 5 ]
 	then
 		# [12] Latitude
 		echo $STR | cut -f12 -d, > /tmp/u200/Latitude
@@ -59,7 +62,7 @@ do
 		echo $STR | cut -f12 -d, > /tmp/sailboat/Simulated_Lat
 		# [13] Longitude
 		echo $STR | cut -f13 -d, > /tmp/sailboat/Simulated_Lon
-	if
+	fi
 	
 
 	# [14] COG
@@ -85,7 +88,5 @@ do
 	echo $STR | cut -f21 -d, > /tmp/sailboat/Point_End_Lon
 
 	echo "DATA: $STR"
-
 	sleep 1
-
 done

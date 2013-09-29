@@ -175,13 +175,13 @@ int main(int argc, char ** argv) {
 					}
 				}
 			}
-			
-			// write a log line every N samples
-			if (Navigation_System!=0) {
-				logCount++;
-				if(logCount>=1) {write_log_file(); logCount=0;}	
-			}
 
+		}
+
+		// write a log line every N samples
+		if (Navigation_System!=0) {
+			logCount++;
+			if(logCount>=1) {write_log_file(); logCount=0;}	
 		}
 
 		//sleep
