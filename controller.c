@@ -18,7 +18,7 @@
 #define PI 		3.14159265
 
 #define TACKINGRANGE 	100		// meters
-#define RADIUSACCEPTED	10		// meters
+#define RADIUSACCEPTED	5		// meters
 #define CONVLON		64078		// meters per degree
 #define CONVLAT		110742		// meters per degree
 
@@ -273,8 +273,8 @@ void onNavChange() {
 
 		if (Prev_Navigation_System==0) {		// START sailing after Simulation
 
-			Point_Start_Lon=Latitude;		// Set START and END point coordinates	
-			Point_Start_Lat=Longitude;
+			Point_Start_Lon=Longitude;		// Set START and END point coordinates	
+			Point_Start_Lat=Latitude;
 			read_endpoint_coordinates();
 			wp.x=Point_End_Lon;			// Save End point in Waypoints array
 			wp.y=Point_End_Lat;
