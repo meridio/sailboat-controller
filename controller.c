@@ -614,7 +614,7 @@ void chooseManeuver()
 
 void performManeuver()
 {
-	float v_b1, v_b2, v_d1_b1, v_d1_b2
+	float v_b1, v_b2, v_d1_b1, v_d1_b2;
 	// I claim, we don't need this any more! theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
 
 	if (debug) printf("theta_b: %f\n",theta_b);
@@ -626,7 +626,7 @@ void performManeuver()
 	v_d1_b1 = cos(theta_d1_b);
 	v_d1_b2 = sin(theta_d1_b);
 
-	if ( cos(angle_trim) < (v_b(1)*v_d1_b(1) + v_b(2)*v_d1_b(2)) { // When the heading approaches the desired heading, sig is reset.
+	if ( cos(angle_lim) < (v_b1*v_d1_b1 + v_b2*v_d1_b2) ) { // When the heading approaches the desired heading, sig is reset.
 		sig3 = 0;
 	}
 
