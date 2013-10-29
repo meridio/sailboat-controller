@@ -13,7 +13,7 @@
 
 #define MAINSLEEP_SEC	0		// seconds
 #define MAINSLEEP_MSEC	250		// milliseconds
-#define MAXLOGLINES	10000
+#define MAXLOGLINES	30000
 
 #define PI 		3.14159265
 
@@ -25,6 +25,7 @@
 #define JIBE_ANGLE	40		// [degrees]  Rudder angle while jibing
 #define theta_nogo	55*PI/180	// [radiants] Angle of nogo zone, compared to wind direction
 #define v_min 		0.1	  	// [Km/h] Min velocity for tacking
+#define angle_lim 	PI/4
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
 #define RATEOFTURN_MAX	36		// [degrees/second]
@@ -613,49 +614,22 @@ void chooseManeuver()
 
 void performManeuver()
 {
-	theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
+	float v_b1, v_b2, v_d1_b1, v_d1_b2
+	// I claim, we don't need this any more! theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
 
 	if (debug) printf("theta_b: %f\n",theta_b);
 	if (debug) printf("theta_d1_b: %f\n",theta_d1_b);
 
-	switch(sig2)
-	{
-		case 2:  // Tack / course change
-			if (      ((theta_d1_b-PI/3) < theta_b) && (theta_b < (theta_d1_b+PI/3))  )  // If heading is close to desired heading
-			{
-				sig3 = 0; // As soon as we’re close to the desired heading, the jibe is finished and the boat will head for theta_d1.
-			}
-			else
-			{
-				sig3 = sig2;
-			}
-			break;
-		case 3:  // Jibe right
-			if ((theta_d1_b-PI/3) < theta_b && theta_b < (theta_d1_b+PI/3))  // If heading is close to desired heading
-			{
-				sig3 = 0; // As soon as we’re close to the desired heading, the jibe is finished and the boat will head for theta_d1.
-				//disp('stop jibe left')
-			}
-			else			
-			{
-				sig3 = sig2;
-			}
-			break;
-		case 4:  // Jibe left
-			if ((theta_d1_b-PI/3) < theta_b && theta_b < (theta_d1_b+PI/3))  // If heading is close to desired heading
-			{
-				sig3 = 0; // As soon as we’re close to the desired heading, the jibe is finished and the boat will head for theta_d1.
-				//disp('stop jibe right')
-			}
-			else			
-			{
-				sig3 = sig2;
-			}
-			break;
-		default:
-			sig3 = sig2;
-			if (debug) printf("\n default in perform manoeuvre function \n");
+	// defining direction unit vectors
+	v_b1 = cos(theta_b);
+	v_b2 = sin(theta_b);
+	v_d1_b1 = cos(theta_d1_b);
+	v_d1_b2 = sin(theta_d1_b);
+
+	if ( cos(angle_trim) < (v_b(1)*v_d1_b(1) + v_b(2)*v_d1_b(2)) { // When the heading approaches the desired heading, sig is reset.
+		sig3 = 0;
 	}
+
 }
 
 
