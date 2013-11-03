@@ -14,6 +14,7 @@
 #define MAINSLEEP_SEC	0		// seconds
 #define MAINSLEEP_MSEC	250		// milliseconds
 #define MAXLOGLINES	30000
+#define SEC		4		// number of loops per second
 
 #define PI 		3.14159265
 
@@ -26,6 +27,7 @@
 #define theta_nogo	55*PI/180	// [radiants] Angle of nogo zone, compared to wind direction
 #define v_min 		0.1	  	// [Km/h] Min velocity for tacking
 #define angle_lim 	PI/4
+#define ROLL_LIMIT 	5		// Threshold for an automatic emergency sail release
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
 #define RATEOFTURN_MAX	36		// [degrees/second]
@@ -64,6 +66,7 @@ float _Complex X, X_T, X_T_b, X_b, X0;
 float integratorSum=0, Guidance_Heading=0;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0;
 int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
+int   roll_counter=0;
 
 void guidance();
 void findAngle();
@@ -690,6 +693,27 @@ void rudder_pid_controller() {
 }
 
 
+/*
+ *	Emergency Control for the main sail actuator:
+ *
+ *	If the ROLL value is greater then a certain threshold, we start releasing the sail.
+ *	After 5 seconds we are in the nominal ROLL range, we start tightening the sail for 5 seconds.
+ */
+void sail_controller() {
+
+	// Emergency Sail Release	
+	if(abs(Roll)>ROLL_LIMIT) { 
+		move_sail(0);		
+		roll_counter=0;
+	} else {
+		roll_counter++;
+	}
+	
+	// After 5 sec under roll threshold, keep tightening the main sail for the next 5 sec
+	if(roll_counter>=5*SEC && roll_counter<=10*SEC) {
+		move_sail(500);		
+	}
+}
 
 
 /*
