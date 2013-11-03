@@ -115,6 +115,7 @@ int main(int argc, char ** argv) {
 				guidance();				// Calculate the desired heading
 				rudder_pid_controller();		// Calculate the desired rudder position
 				move_rudder(Rudder_Desired_Angle);	// Move rudder
+				sail_controller();			// Emergency Sail release
 
 				// reaching the waypoint
 				if (cabs(X_T - X) < RADIUSACCEPTED) {	
@@ -710,7 +711,7 @@ void sail_controller() {
 	}
 	
 	// After 5 sec under roll threshold, keep tightening the main sail for the next 5 sec
-	if(roll_counter>=5*SEC && roll_counter<=10*SEC) {
+	if(roll_counter>=5*SEC && roll_counter<=15*SEC) {
 		move_sail(500);		
 	}
 }
