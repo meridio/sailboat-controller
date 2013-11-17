@@ -16,25 +16,43 @@
 
 #define GPIO_NUMBER		60     	// 60 = gpio1_28 (1 * 32 + 28 = 60) // P9_12 on Beaglebone Black
 #define GPIO_SECOND		30		// 30 = gpio0_30 (0 * 32 + 30 = 30) // P9_11 on Beaglebone Black
-#define DEBOUNCE_DELAY 500
+#define DEBOUNCE_DELAY 	50
 
 static dev_t first; // Global variable for the first device number
-static struct cdev c_dev, c_dev2; // Global variable for the character device structure
+static struct cdev c_dev;//, c_dev2; // Global variable for the character device structure
 static struct class *cl; // Global variable for the device class
 
 static int init_result;
-static int button1_irq = 0;
-static int button2_irq = 0;
-static int button1_count = 0; // irq count
-static int button2_count = 0; // irq count
+static int hall_a_irq = 0;
+static int hall_b_irq = 0;
+static int hall_count = 0; // irq count
+static int hall_state = 0;
 
-static int buttons = 1;
-module_param(buttons, int, 0);
-MODULE_PARM_DESC(buttons, "This byte decides the number of buttons (1-2)");
+//static int button2_count = 0; // irq count
+
+//static int buttons = 1;
+//module_param(buttons, int, 0);
+//MODULE_PARM_DESC(buttons, "This byte decides the number of buttons (1-2)");
 
 unsigned int last_interrupt_time1 = 0;
 unsigned int last_interrupt_time2 = 0;
 static uint64_t epochMilli;
+
+
+/*************IRQ state flow**********************
+ * A:____|-----|____|-----|____|-----|__
+ * B:______|-----|____|-----|____|-----|
+ *
+ * S:    0 1   2 3  0 1   2 3
+ *
+ * Concept: Check state before and after to deside direction of movement.
+*/
+
+
+
+
+
+
 
 /*
  * Timer for interrupt debounce, borrowed from
@@ -63,7 +81,7 @@ static irqreturn_t button1_handler(int irq, void *dev_id) {
 	}
 	last_interrupt_time1 = interrupt_time;
 
-	button1_count++;
+	hall_count++;
 	printk(KERN_INFO "button: I got an interrupt.\n");
 	return IRQ_HANDLED;
 }
@@ -142,7 +160,7 @@ static ssize_t button1_write(struct file* F, const char *buf, size_t count,
 	switch (buf[0]) {
 	case '0':
 		gpio_set_value(GPIO_NUMBER, 0);
-		button1_count = 0;
+		hall_count = 0;
 		break;
 	case '1':
 		gpio_set_value(GPIO_NUMBER, 1);
@@ -260,7 +278,7 @@ static int __init init_button(void)
 			return -1;
 		}
 
-		if((button1_irq = gpio_to_irq(GPIO_NUMBER)) < 0)
+		if((hall_a_irq = gpio_to_irq(GPIO_NUMBER)) < 0)
 		{
 			printk( KERN_ALERT "gpio to irq failed\n" );
 			device_destroy( cl, first );
@@ -269,7 +287,7 @@ static int __init init_button(void)
 			return -1;
 		}
 
-		if(request_irq(button1_irq, button1_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#button", NULL ) == -1)
+		if(request_irq(hall_a_irq, button1_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#button", NULL ) == -1)
 		{
 			printk( KERN_ALERT "Device interrupt handle failed\n" );
 			device_destroy( cl, first );
@@ -280,7 +298,7 @@ static int __init init_button(void)
 		}
 		else
 		{
-			printk( KERN_ALERT "button: Device irq number is %d\n", button1_irq );
+			printk( KERN_ALERT "button: Device irq number is %d\n", hall_a_irq );
 		}
 	}
 
@@ -316,7 +334,7 @@ static int __init init_button(void)
 			return -1;
 		}
 
-		if((button2_irq = gpio_to_irq(GPIO_SECOND)) < 0)
+		if((hall_b_irq = gpio_to_irq(GPIO_SECOND)) < 0)
 		{
 			printk( KERN_ALERT "gpio to irq failed\n" );
 			device_destroy( cl, first );
@@ -324,7 +342,7 @@ static int __init init_button(void)
 			unregister_chrdev_region( first, 2 );
 			return -1;
 		}
-		if(request_irq(button2_irq, button2_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#button", NULL ) == -1)
+		if(request_irq(hall_b_irq, button2_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#button", NULL ) == -1)
 		{
 			printk( KERN_ALERT "Device interrupt handle failed\n" );
 			device_destroy( cl, first );
@@ -335,7 +353,7 @@ static int __init init_button(void)
 		}
 		else
 		{
-			printk( KERN_ALERT "button: Device irq number is %d\n", button2_irq );
+			printk( KERN_ALERT "button: Device irq number is %d\n", hall_b_irq );
 		}
 	}
 
@@ -354,8 +372,8 @@ static void __exit cleanup_button(void)
 
 	printk(KERN_ALERT "button: Device unregistered\n");
 
-	free_irq(button1_irq, NULL);
-	free_irq(button2_irq, NULL);
+	free_irq(hall_a_irq, NULL);
+	free_irq(hall_b_irq, NULL);
 	gpio_free(GPIO_NUMBER);
 	gpio_free(GPIO_SECOND);
 }
