@@ -1,238 +1,368 @@
+#include <linux/kernel.h>
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/platform_device.h>
+#include <linux/gpio.h>
+#include <linux/fs.h>
+#include <linux/errno.h>
+#include <asm/uaccess.h>
+#include <linux/version.h>
+#include <linux/types.h>
+#include <linux/kdev_t.h>
+#include <linux/device.h>
+#include <linux/cdev.h>
+#include <linux/interrupt.h>
+#include <linux/time.h>
+
+#define GPIO_NUMBER		60     	// 60 = gpio1_28 (1 * 32 + 28 = 60) // P9_12 on Beaglebone Black
+#define GPIO_SECOND		30		// 30 = gpio0_30 (0 * 32 + 30 = 30) // P9_11 on Beaglebone Black
+#define DEBOUNCE_DELAY 500
+
+static dev_t first; // Global variable for the first device number
+static struct cdev c_dev, c_dev2; // Global variable for the character device structure
+static struct class *cl; // Global variable for the device class
+
+static int init_result;
+static int button1_irq = 0;
+static int button2_irq = 0;
+static int button1_count = 0; // irq count
+static int button2_count = 0; // irq count
+
+static int buttons = 1;
+module_param(buttons, int, 0);
+MODULE_PARM_DESC(buttons, "This byte decides the number of buttons (1-2)");
+
+unsigned int last_interrupt_time1 = 0;
+unsigned int last_interrupt_time2 = 0;
+static uint64_t epochMilli;
+
 /*
- * This code is made for Cyber sailing class spring'13
- * input is an angle between -45 deg og 45 deg
- * Interface:
- * RUDDER:
- * 	2 pwm's
- * 	1 outputs for Enable pin on the dual-h-bridge
- * 	1 adc in for Rudder angular sensor
- * 	SAIL:
- * 	2 pwm's
- * 	2 inputs from hall module (LA36)
- * 	1 outputs for Enable pin on the dual-h-bridge
+ * Timer for interrupt debounce, borrowed from
+ * http://raspberrypi.stackexchange.com/questions/8544/gpio-interrupt-debounce
  */
+unsigned int millis(void) {
+	struct timeval tv;
+	uint64_t now;
 
-/* TO DO
- - Calibrate CONVERTION_VALUE
- - implement hall counter module or function
- - Enable = 0 when in neutral and ramp'd down ? only an idea.. lets see on the current flow
+	do_gettimeofday(&tv);
+	now = (uint64_t) tv.tv_sec * (uint64_t) 1000
+			+ (uint64_t)(tv.tv_usec / 1000);
+
+	return (uint32_t)(now - epochMilli);
+}
+
+/*
+ * The interrupt handler function
  */
+static irqreturn_t button1_handler(int irq, void *dev_id) {
+	unsigned int interrupt_time = millis();
 
-#include "actuators.h"
-
-int desired_angle, desired_length = 0;
-int adc_value = 0;
-int actual_angle = 0;
-int write_delay = 0;
-
-FILE* file;
-enum directions {
-	RIGHT, LEFT, NEUTRAL, IN, OUT
-};
-int rudder_direction, sail_direction, last_rudder_direction = NEUTRAL;
-
-//#define 	LIMIT_VALUE 	20
-#define 	CONVERTION_VALUE 	0.11	// Needs to be calibrated!
-#define 	FEEDBACK_CENTER 	1020 	// <-- ~1800/2
-#define 	ERROR_MARGIN 		2
-#define 	MAX_DUTY 			60
-
-void init_io();
-void initFiles();
-void read_desired_rudder_angle_values();
-void read_desired_sail_length_values();
-void sleep_ms();
-
-int main() {
-
-	initFiles();
-	init_io();
-	for (;;) {
-		read_desired_rudder_angle_values();
-		read_desired_sail_length_values();
-
-		//read from rudder ADC
-		/*ADC READ*/
-		fprintf(stdout, "adc reading\n");
-		file = fopen("/sys/class/hwmon/hwmon0/device/in3_input", "r");
-		fscanf(file, "%d", &adc_value);
-		fclose(file);
-
-		//do convertion adc -> angle
-		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
-		fprintf(stdout, "actual_angle: %d\n", actual_angle);
-		//write to disk
-		if (write_delay > 10) {
-			write_delay = 0;
-			file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
-			fprintf(file, "%d", actual_angle);
-			fclose(file);
-		} else
-			write_delay++;
-		int delta_angle = actual_angle - desired_angle;
-		if (delta_angle < 0)
-			delta_angle = -delta_angle;
-		fprintf(stdout, "ABS delta angle %d\n", delta_angle); //print out difference to desired angle
-		if (delta_angle > ERROR_MARGIN) { //check if it is logical to move
-
-			//decide direction of movement
-			if (actual_angle < desired_angle) {
-				fprintf(stdout, "actual_angle < desired_angle\n"); //print info
-				if (rudder_direction != LEFT) { //check if directions was changed
-					rudder_direction = LEFT; //set new direction
-					ramp_up_rudder_left(
-							find_rudder_duty(actual_angle, desired_angle)); //ramp up rudder left to desired duty
-				} else {
-					move_rudder_left(
-							find_rudder_duty(actual_angle, desired_angle)); //set new speed of rudder to desired duty
-				}
-
-			} else if (actual_angle > desired_angle) {
-				fprintf(stdout, "actual_angle > desired_angle\n"); //print info
-				if (rudder_direction != RIGHT) { //check if directions was changed
-					rudder_direction = RIGHT; //set new direction
-					ramp_up_rudder_right(
-							find_rudder_duty(actual_angle, desired_angle)); //ramp up rudder right to desired duty
-				} else {
-					move_rudder_right(
-							find_rudder_duty(actual_angle, desired_angle)); //set new speed of rudder to desired duty
-				}
-			} else {
-				fprintf(stdout, "actual_angle = desired_angle!!!\n"); //print info
-				if (rudder_direction != NEUTRAL) { //check if rudder were in neutral
-					rudder_direction = NEUTRAL; //set rudder to neutral
-					fprintf(stdout, "Going NEUTRAL\n");
-					stop_rudder(); //stop the rudder and prepare for ramp up
-				}
-			}
-		} else {
-			//set outputs low/high? 
-			fprintf(stdout, "delta angle < ERROR MARGIN\n");
-			stop_rudder(); //stop rudder in case of error margin
-
-		}
-		fprintf(stdout, "::::::::::END LOOP::::::::::\n\n"); //end
-		sleep_ms(100);
+	if (interrupt_time - last_interrupt_time1 < DEBOUNCE_DELAY) {
+		//printk(KERN_NOTICE "button: Ignored Interrupt! \n");
+		return IRQ_HANDLED;
 	}
+	last_interrupt_time1 = interrupt_time;
+
+	button1_count++;
+	printk(KERN_INFO "button: I got an interrupt.\n");
+	return IRQ_HANDLED;
+}
+static irqreturn_t button2_handler(int irq, void *dev_id) {
+	unsigned int interrupt_time = millis();
+
+	if (interrupt_time - last_interrupt_time2 < DEBOUNCE_DELAY) {
+		//printk(KERN_NOTICE "button: Ignored Interrupt! \n");
+		return IRQ_HANDLED;
+	}
+	last_interrupt_time2 = interrupt_time;
+
+	button2_count++;
+	printk(KERN_INFO "button: I got an interrupt.\n");
+	return IRQ_HANDLED;
+}
+
+/*
+ * .read
+ */
+static ssize_t button1_read(struct file* F, char *buf, size_t count,
+		loff_t *f_pos) {
+	printk(KERN_INFO "button irq counts: %d\n", button1_count);
+
+	char buffer[10];
+
+	int temp = gpio_get_value(GPIO_NUMBER);
+
+	sprintf(buffer, "%1d", temp);
+
+	count = sizeof(buffer);
+
+	if (copy_to_user(buf, buffer, count)) {
+		return -EFAULT;
+	}
+
+	if (*f_pos == 0) {
+		*f_pos += 1;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+static ssize_t button2_read(struct file* F, char *buf, size_t count,
+		loff_t *f_pos) {
+	printk(KERN_INFO "button irq counts: %d\n", button2_count);
+
+	char buffer[10];
+
+	int temp = gpio_get_value(GPIO_SECOND);
+
+	sprintf(buffer, "%1d", temp);
+
+	count = sizeof(buffer);
+
+	if (copy_to_user(buf, buffer, count)) {
+		return -EFAULT;
+	}
+
+	if (*f_pos == 0) {
+		*f_pos += 1;
+		return 1;
+	} else {
+		return 0;
+	}
+}
+
+/*
+ * .write
+ */
+static ssize_t button1_write(struct file* F, const char *buf, size_t count,
+		loff_t *f_pos) {
+	printk(KERN_INFO "button: Executing WRITE.\n");
+
+	switch (buf[0]) {
+	case '0':
+		gpio_set_value(GPIO_NUMBER, 0);
+		button1_count = 0;
+		break;
+	case '1':
+		gpio_set_value(GPIO_NUMBER, 1);
+		break;
+
+	default:
+		printk("button: Wrong option.\n");
+		break;
+	}
+
+	return count;
+}
+static ssize_t button2_write(struct file* F, const char *buf, size_t count,
+		loff_t *f_pos) {
+	printk(KERN_INFO "button: Executing WRITE.\n");
+
+	switch (buf[0]) {
+	case '0':
+		gpio_set_value(GPIO_SECOND, 0);
+		button2_count = 0;
+		break;
+	case '1':
+		gpio_set_value(GPIO_SECOND, 1);
+		break;
+
+	default:
+		printk("button: Wrong option.\n");
+		break;
+	}
+
+	return count;
+}
+
+/*
+ * / .open
+ */
+static int button_open(struct inode *inode, struct file *file) {
 	return 0;
 }
 
 /*
- *	Create Empty files
+ * .close
  */
-void initFiles() {
-	fprintf(stdout, "file init\n");
-	system("mkdir /tmp/actuators");
-	system("echo 0 > /tmp/sailboat/Rudder_Feedback");
-	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
-	system("echo 0 > /tmp/sailboat/Navigation_System_Sail");
+static int button_close(struct inode *inode, struct file *file) {
+	return 0;
 }
 
-void init_io() {
-	//configure io and pwm
-	fprintf(stdout, "IO init\n");
+static struct file_operations FileOps1 = { .owner = THIS_MODULE, .open =
+		button_open, .read = button1_read, .write = button1_write, .release =
+		button_close, };
+
+static struct file_operations FileOps2 = { .owner = THIS_MODULE, .open =
+		button_open, .read = button2_read, .write = button2_write, .release =
+		button_close, };
+/*
+ * Module init function.
+ */
+static int __init init_button(void)
+{
+	printk(KERN_ALERT "buttons value is: %i\n", buttons);
+
+	struct timeval tv;
+	//init_result = register_chrdev( 0, "gpio", &FileOps );
+
+	do_gettimeofday(&tv);
+	epochMilli = (uint64_t)tv.tv_sec * (uint64_t)1000 + (uint64_t)(tv.tv_usec / 1000);
+
+	init_result = alloc_chrdev_region( &first, 0, 2, "button_driver" );
+
+	if( 0 > init_result )
+	{
+		printk( KERN_ALERT "button: Device Registration failed\n" );
+		return -1;
+	}
+	else
+	{
+		printk( KERN_ALERT "button: Major number is: %d\n",init_result );
+		//return 0;
+	}
+
+	if ( (cl = class_create( THIS_MODULE, "chardev" ) ) == NULL )
+	{
+		printk( KERN_ALERT "button: Class creation failed\n" );
+		unregister_chrdev_region( first, 1 );
+		return -1;
+	}
 	/*
-	 * 	2 pwm's
-	 * 	-connected to EN-pins FAIL FAIL FAIL... redo this section later acording to actual IO setup
-	 * 	1 adc
-	 * 	-connected to rudder feedback
-	 * 	2 inputs from hall module (LA36)
-	 * 	-hall A and B ___ THIS NEED TO BE IN A KERNEL MODULE! fast signals!
-	 * 	4 outputs for dual-h-bridge
-	 * 	-RPWM, LPWM for A and B motor
+	 * First device
 	 */
-	//guide used: wiki.gumstix.org//index,php?title=GPIO
-	//the most faulty non-informative-ish wiki guide
-	/*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
-	 * 
+	if(buttons >= 1) {
+		if( device_create( cl, NULL, first, NULL, "button1" ) == NULL )
+		{
+			printk( KERN_ALERT "button: Device creation failed\n" );
+			class_destroy(cl);
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
+		cdev_init( &c_dev, &FileOps1 );
+
+		if( cdev_add( &c_dev, first, 1 ) == -1)
+		{
+			printk( KERN_ALERT "Device addition failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
+
+		if(gpio_request(GPIO_NUMBER, "button1"))
+		{
+			printk( KERN_ALERT "gpio request failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
+
+		if((button1_irq = gpio_to_irq(GPIO_NUMBER)) < 0)
+		{
+			printk( KERN_ALERT "gpio to irq failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
+
+		if(request_irq(button1_irq, button1_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#button", NULL ) == -1)
+		{
+			printk( KERN_ALERT "Device interrupt handle failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 1 );
+
+			return -1;
+		}
+		else
+		{
+			printk( KERN_ALERT "button: Device irq number is %d\n", button1_irq );
+		}
+	}
+
+	/*
+	 * Second Device
 	 */
-	system("devmem2 0x480021c8 h 0x10c"); //GPIO 171
-	system("devmem2 0x480021ca h 0x10c"); //GPIO 172
-	//system("devmem2 0x480021cc h 0x10c"); //GPIO 173
-	//system("devmem2 0x480021ce h 0x10c"); //GPIO 174
-	system("echo 171 > /sys/class/gpio/export");
-	system("echo 172 > /sys/class/gpio/export");
-	system("echo out > /sys/class/gpio/gpio171/direction");
-	system("echo out > /sys/class/gpio/gpio172/direction");
+	if(buttons >= 2) {
+		if( device_create( cl, NULL, first + 1, NULL, "button2" ) == NULL )
+		{
+			printk( KERN_ALERT "button: Device creation failed\n" );
+			class_destroy(cl);
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
 
-	system("echo 1 > /sys/class/gpio/gpio171/value");	//Can stay here for now.. but later maybe be used, see TODO list ref. EN.
-	system("echo 1 > /sys/class/gpio/gpio172/value");
+		cdev_init( &c_dev2, &FileOps2 );
 
-	//install pwm module
-	system("insmod pwm.ko");
+		if( cdev_add( &c_dev2, first + 1, 1 ) == -1)
+		{
+			printk( KERN_ALERT "Device addition failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
 
-}
+		if(gpio_request(GPIO_SECOND, "button1"))
+		{
+			printk( KERN_ALERT "gpio request failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
 
-void read_desired_rudder_angle_values() {
-	fprintf(stdout, "reading desired angle\n");
-	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "r");
-	fscanf(file, "%d", &desired_angle);
-	fclose(file);
-	fprintf(stdout, "desired angle: %d\n", desired_angle);
-}
+		if((button2_irq = gpio_to_irq(GPIO_SECOND)) < 0)
+		{
+			printk( KERN_ALERT "gpio to irq failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
+		if(request_irq(button2_irq, button2_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#button", NULL ) == -1)
+		{
+			printk( KERN_ALERT "Device interrupt handle failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 1 );
 
-void read_desired_sail_length_values() {
-	fprintf(stdout, "reading desired length\n");
-	file = fopen("/tmp/sailboat/Navigation_System_Sail", "r");
-	fscanf(file, "%d", &desired_length);
-	fclose(file);
-	fprintf(stdout, "desired length: %d\n", desired_length);
-}
-void move_rudder_left(int duty) {
-	file = fopen("/dev/pwm10", "w");
-	fprintf(file, "%d", 0);
-	fclose(file);
-	file = fopen("/dev/pwm11", "w");
-	fprintf(file, "%d", duty);
-	fclose(file);
-	fprintf(stdout, "going left, duty: %d\n", duty);
-}
-void move_rudder_right(int duty) {
-	file = fopen("/dev/pwm11", "w");
-	fprintf(file, "%d", 0);
-	fclose(file);
-	file = fopen("/dev/pwm10", "w");
-	fprintf(file, "%d", duty);
-	fclose(file);
-	fprintf(stdout, "going right, duty: %d\n", duty);
-}
-void ramp_up_rudder_left(int final_duty) {
-	for (int duty = 0; duty <= final_duty; duty += 10) {
-		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
-		move_rudder_left(duty)
-		sleep_ms(5);
+			return -1;
+		}
+		else
+		{
+			printk( KERN_ALERT "button: Device irq number is %d\n", button2_irq );
+		}
 	}
+
+	return 0;
 }
-void ramp_up_rudder_right(int final_duty) {
-	for (int duty = 0; duty <= final_duty; duty += 10) {
-		fprintf(stdout, "ramping up ~ duty: %d\n", duty);
-		move_rudder_right(duty)
-		sleep_ms(5);
-	}
-}
-void stop_rudder(void) {
-	file = fopen("/dev/pwm11", "w");
-	fprintf(file, "%d", 0);
-	fclose(file);
-	file = fopen("/dev/pwm10", "w");
-	fprintf(file, "%d", 0);
-	fclose(file);
-	fprintf(stdout, "rudder stopped");
-	sleep_ms(5);
+/*
+ * Module exit function
+ */
+static void __exit cleanup_button(void)
+{
+	cdev_del( &c_dev );
+	device_destroy( cl, first );
+	device_destroy( cl, first + 1 );
+	class_destroy( cl );
+	unregister_chrdev_region( first, 2 );
+
+	printk(KERN_ALERT "button: Device unregistered\n");
+
+	free_irq(button1_irq, NULL);
+	free_irq(button2_irq, NULL);
+	gpio_free(GPIO_NUMBER);
+	gpio_free(GPIO_SECOND);
 }
 
-int find_rudder_duty(int actual_angle, int desired_angle) {
-	int duty = MAX_DUTY; //setting duty to highest speed
-	if ((actual_angle - desired_angle) < 5
-			|| (actual_angle - desired_angle) < -5) { //check if within 5 degrees of desired angle
-		duty = 20; //setting duty to lowerst speed
-	} else if ((actual_angle - desired_angle) < 10
-			|| (actual_angle - desired_angle) < -10) { //check if within 10 degrees of desired angle
-		duty = 30; //setting duty to lower speed
-	}
-}
+module_init( init_button);
+module_exit( cleanup_button);
 
-void sleep_ms(int ms) {
-	usleep(ms * 1000); //convert to microseconds
-	return;
-}
+MODULE_AUTHOR("Birkir Oskarsson & Bjorn Smith");
+MODULE_LICENSE("GPL");
+MODULE_DESCRIPTION("Beaglebone Black gpio1_28 irq driver");

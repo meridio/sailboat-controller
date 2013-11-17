@@ -1,8 +1,13 @@
+obj-m += hall.o
+
+CROSS = arm-linux-gnueabi-
+
+KDIR = /home/birkiro/beaglebone-dev/kernel
+
+PWD := $(shell pwd)
 
 all:
-	#--- COMPILING [HALL] FOR x86 ---#
-	gcc -Wall hall.c -o ./bin/hall_x86
-	#--- COMPILING [HALL] FOR ARM ---#
-	arm-linux-gnueabi-gcc -Wall hall.c -o ./bin/hall_arm
-	scp ./bin/hall_arm root@10.42.0.32:/home/root
-
+	make ARCH=arm -C $(KDIR) M=$(PWD) CROSS_COMPILE=$(CROSS) modules
+	#scp hall.ko root@192.168.7.2:/home/root
+clean:
+	make -C $(KDIR) M=$(PWD) CROSS_COMPILE=$(CROSS) clean
