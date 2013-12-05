@@ -35,8 +35,6 @@
 #define GAIN_P 		-1
 #define GAIN_I 		0
 
-#define SIM_DISTANCE	8		// [meters] displacement in simulated coordinates at every iteration
-
 #include "map_geometry.h"		// custom functions to handle geometry transformations on the map
 
 
@@ -45,7 +43,7 @@ float Rate=0, Heading=0, Deviation=0, Variation=0, Yaw=0, Pitch=0, Roll=0;
 float Latitude=0, Longitude=0, COG=0, SOG=0, Wind_Speed=0, Wind_Angle=0;
 float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0, Manual_Control_Rudder=0, Manual_Control_Sail=0, Rudder_Feedback=0; 
-int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, simulation_stop=0;
+int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0;
 int   logEntry=0, fa_debug=0, debug=0;
 char  logfile1[50],logfile2[50],logfile3[50];
 
@@ -53,9 +51,9 @@ void initfiles();
 void check_navigation_system();
 void onNavChange();
 void read_weather_station();
+void read_weather_station_essential();
 void move_rudder(int angle);
 void move_sail(int angle);
-void read_endpoint_coordinates();
 void write_log_file();
 
 struct timespec timermain;
@@ -75,12 +73,13 @@ void performManeuver();
 void rudder_pid_controller();
 
 
-// area waypoints
-int i=0, k=0, nwaypoints=0, current_waypoint=0;
-Point Waypoints[1000];
+//waypoints
+int nwaypoints=0, current_waypoint=0;
+Point AreaWaypoints[1000], Waypoints[1000];
 
 void calculate_area_waypoints();
-void move_to_simulated_position();
+void prepare_waypoint_array();
+
 
 
 
@@ -105,59 +104,25 @@ int main(int argc, char ** argv) {
 
 			move_rudder(Manual_Control_Rudder);		// Move the rudder to user position
 			move_sail(Manual_Control_Sail);			// Move the main sail to user position
+			read_weather_station_essential();
 
 		} else {
 
 			// AUTOPILOT ON
-			if ((Navigation_System==1)||(Navigation_System==2)||(Navigation_System==3)) {
-
+			if ((Navigation_System==1)||(Navigation_System==3))
+			{
 				read_weather_station();			// Update sensors data
 				guidance();				// Calculate the desired heading
 				rudder_pid_controller();		// Calculate the desired rudder position
 				move_rudder(Rudder_Desired_Angle);	// Move rudder
-				sail_controller();			// Emergency Sail release
+				//sail_controller();			// Emergency Sail release
 
 				// reaching the waypoint
-				if (cabs(X_T - X) < RADIUSACCEPTED) {	
-
-					if (Navigation_System==1) {
-						// maintain position
-						file = fopen("/tmp/sailboat/Navigation_System", "w");
-						if (file != NULL) { fprintf(file, "3");	fclose(file); }
-					}
-					if (Navigation_System==2) {
-						if (current_waypoint<nwaypoints-1) {
-							// go to the next waypoint		
-							current_waypoint++;
-							Point_Start_Lon=Waypoints[current_waypoint-1].x;
-							Point_Start_Lat=Waypoints[current_waypoint-1].y;			
-							Point_End_Lon=Waypoints[current_waypoint].x;		
-							Point_End_Lat=Waypoints[current_waypoint].y;
-							file = fopen("/tmp/sailboat/Point_End_Lat", "w");
-							if (file != NULL) { fprintf(file, "%f", Point_End_Lat); fclose(file); }
-							file = fopen("/tmp/sailboat/Point_End_Lon", "w");
-							if (file != NULL) { fprintf(file, "%f", Point_End_Lon); fclose(file); }
-						}
-						else{
-							// maintain position
-							file = fopen("/tmp/sailboat/Navigation_System", "w");
-							if (file != NULL) { fprintf(file, "3");	fclose(file); }
-						}
-					}
-				}
-			}
-
-			// SIMULATION
-			if (Navigation_System==5 && simulation_stop==0) {
-
-				guidance();				// Calculate the desired heading
-				Heading=Guidance_Heading;		// Overwrite Heading
-				move_to_simulated_position();		// Overwrite Latitude and Longitude with simulated coordinates
-				
-				// reaching the waypoint
-				if (cabs(X_T - X) < RADIUSACCEPTED) {
-					if (current_waypoint<nwaypoints-1) {
-						// keep on simulating to the next waypoint		
+				if  ( (cabs(X_T - X) < RADIUSACCEPTED) && (Navigation_System==1) )
+				{	
+					if (current_waypoint<nwaypoints-1)
+					{
+						// go to the next waypoint		
 						current_waypoint++;
 						Point_Start_Lon=Waypoints[current_waypoint-1].x;
 						Point_Start_Lat=Waypoints[current_waypoint-1].y;			
@@ -167,21 +132,21 @@ int main(int argc, char ** argv) {
 						if (file != NULL) { fprintf(file, "%f", Point_End_Lat); fclose(file); }
 						file = fopen("/tmp/sailboat/Point_End_Lon", "w");
 						if (file != NULL) { fprintf(file, "%f", Point_End_Lon); fclose(file); }
-					}
-					else {
-						// terminate path simulation on clients
-						file = fopen("/tmp/sailboat/Simulated_Lat", "w");
-						if (file != NULL) { fprintf(file, "0"); fclose(file); }
-						file = fopen("/tmp/sailboat/Simulated_Lon", "w");
-						if (file != NULL) { fprintf(file, "0"); fclose(file); }
-						Latitude=0; Longitude=0;
-						simulation_stop=1;
+					} 
+					else
+					{
+						// maintain position
+						file = fopen("/tmp/sailboat/Navigation_System", "w");
+						if (file != NULL) { fprintf(file, "3");	fclose(file); }
 					}
 				}
 			}
-
+			else
+			{
+				// AUTOPILOT OFF
+				read_weather_station_essential();
+			}
 		}
-
 
 		// write a log line
 		write_log_file();
@@ -198,7 +163,11 @@ int main(int argc, char ** argv) {
 void initfiles() {
 	system("mkdir -p /tmp/sailboat");
 	system("mkdir -p sailboat-log/debug/");
-	system("mkdir -p sailboat-log/area/");
+
+	system("cp /usr/share/wp_go     /tmp/sailboat/");
+	system("cp /usr/share/wp_return /tmp/sailboat/");
+	system("cp /usr/share/area_vx   /tmp/sailboat/");
+	system("cp /usr/share/area_int  /tmp/sailboat/");
 
 	system("[ ! -f /tmp/sailboat/Navigation_System ] 	&& echo 0 > /tmp/sailboat/Navigation_System");
 	system("[ ! -f /tmp/sailboat/Navigation_System_Rudder ] && echo 0 > /tmp/sailboat/Navigation_System_Rudder");
@@ -210,15 +179,8 @@ void initfiles() {
 	system("[ ! -f /tmp/sailboat/Point_Start_Lon ] 		&& echo 0 > /tmp/sailboat/Point_Start_Lon");
 	system("[ ! -f /tmp/sailboat/Point_End_Lat ] 		&& echo 0 > /tmp/sailboat/Point_End_Lat");
 	system("[ ! -f /tmp/sailboat/Point_End_Lon ] 		&& echo 0 > /tmp/sailboat/Point_End_Lon");
-	system("[ ! -f /tmp/sailboat/Simulated_Lat ] 		&& echo 0 > /tmp/sailboat/Simulated_Lat");
-	system("[ ! -f /tmp/sailboat/Simulated_Lon ] 		&& echo 0 > /tmp/sailboat/Simulated_Lon");
-	system("[ ! -f /tmp/sailboat/Simulated_Lon ] 		&& echo 0 > /tmp/sailboat/Simulated_Heading");
-	system("[ ! -f /tmp/sailboat/Area_VertexNum ] 		&& echo 0 > /tmp/sailboat/VertexNum");
-	system("[ ! -f /tmp/sailboat/Area_Interval ] 		&& echo 0 > /tmp/sailboat/Area_Interval");
 	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 	&& echo 0 > /tmp/sailboat/Guidance_Heading");
 	system("[ ! -f /tmp/sailboat/Rudder_Feedback ] 		&& echo 0 > /tmp/sailboat/Rudder_Feedback");
-
-	system("echo 0,0,0 > sailboat-log/area/area_info");
 }
 
 /*
@@ -227,10 +189,8 @@ void initfiles() {
  *	[Navigation System] 
  *		- [0] Boat in IDLE status
  *		- [1] Control System ON, Sail to the waypoint
- *		- [2] Control System ON, Map area
- *		- [3] Control System ON, Mantain upwind position
- *		- [4] Simulation, Sail to Waypoint
- *		- [5] Simulation, Map Area
+ *		- [3] Control System ON, Mantain position
+ *		- [4] Calculate Route
  *	[Manual Control]
  *		- [0] OFF
  *		- [1] User takes control of sail and rudder positions
@@ -262,10 +222,9 @@ void check_navigation_system() {
  *	Whenever a new Navigation_System state is entered:
  */
 void onNavChange() {
-	
-	Point wp;
 
-	read_weather_station();					// Update current position, wind angle, heading, ...
+	// Update current position, wind angle, heading, ...
+	read_weather_station();
 
 	// SWITCH AUTOPILOT OFF
 	if(Navigation_System==0) {
@@ -273,48 +232,27 @@ void onNavChange() {
 		// do nothing
 	}
 
-	// START SAILING 
+
+	// START SAILING
 	if(Navigation_System==1) {
 
-		if (Prev_Navigation_System==0) {		// START sailing after Simulation
+		if (Prev_Navigation_System==4) {		// START sailing
 
-			Point_Start_Lon=Longitude;		// Set START and END point coordinates	
-			Point_Start_Lat=Latitude;
-			read_endpoint_coordinates();
-			wp.x=Point_End_Lon;			// Save End point in Waypoints array
-			wp.y=Point_End_Lat;
-			Waypoints[0]=wp;
-		}
-
-		if (Prev_Navigation_System==3) {		// RESUME sailing 
-			
-			Point_End_Lon=Waypoints[0].x;		
-			Point_End_Lat=Waypoints[0].y;
-		}
-	}
-
-	// START MAPPING AN AREA
-	if(Navigation_System==2) {
-		
-		if (Prev_Navigation_System==5) {		// START MAPPING after simulation
-
-			current_waypoint=0;
-			Point_Start_Lon=Longitude;		// Set START and END point coordinates
-			Point_Start_Lat=Latitude;			
+			current_waypoint=0;			
 			Point_End_Lon=Waypoints[0].x;		
 			Point_End_Lat=Waypoints[0].y;
 		}
 		
-		if (Prev_Navigation_System==3) {		// RESUME MISSION: Overwrite START and END point coordinates
+		if (Prev_Navigation_System==3) {		// RESUME sailing
 
-			if ( current_waypoint != 0) {
-				Point_Start_Lon = Waypoints[current_waypoint-1].x;
-				Point_Start_Lat = Waypoints[current_waypoint-1].y;
-			}
 			Point_End_Lon   = Waypoints[current_waypoint].x;
 			Point_End_Lat   = Waypoints[current_waypoint].y;
 		}
+
+		Point_Start_Lon=Longitude;			// Update starting point
+		Point_Start_Lat=Latitude;
 	}
+
 
 	// MAINTAIN POSITION
 	if(Navigation_System==3) {				
@@ -323,23 +261,18 @@ void onNavChange() {
 		Point_End_Lat = Latitude;
 	}
 	
-	// SIMULATE - WAYPOINT
+
+	// CALCULATE ROUTE
 	if(Navigation_System==4) {
 
-		// not implemented
-	}
+		// Read WP_GO, WP_RETURN, calculate Area waypoints and put all together
+		prepare_waypoint_array();
 
-	// SIMULATE - MAP AREA
-	if(Navigation_System==5) {
-
-		simulation_stop=0;
-		calculate_area_waypoints();		// Calculate the Waypoint array
-		current_waypoint=0;
-		Point_Start_Lon=Longitude;		// Set START and END point coordinates
-		Point_Start_Lat=Latitude;			
-		Point_End_Lon=Waypoints[0].x;		
-		Point_End_Lat=Waypoints[0].y;
+		// Start sailing	
+		file = fopen("/tmp/sailboat/Navigation_System", "w");	
+		if (file != NULL) { fprintf(file, "1"); fclose(file); }	
 	}
+	
 
 	file = fopen("/tmp/sailboat/Point_End_Lat", "w");
 	if (file != NULL) { fprintf(file, "%f", Point_End_Lat); fclose(file); }
@@ -698,7 +631,7 @@ void rudder_pid_controller() {
  *	Emergency Control for the main sail actuator:
  *
  *	If the ROLL value is greater then a certain threshold, we start releasing the sail.
- *	After 5 seconds we are in the nominal ROLL range, we start tightening the sail for 5 seconds.
+ *	After 3 seconds we are in the nominal ROLL range, we start tightening the sail for 5 seconds.
  */
 void sail_controller() {
 
@@ -710,8 +643,8 @@ void sail_controller() {
 		roll_counter++;
 	}
 	
-	// After 5 sec under roll threshold, keep tightening the main sail for the next 5 sec
-	if(roll_counter>=5*SEC && roll_counter<=15*SEC) {
+	// After 3 sec under roll threshold, keep tightening the main sail for the next 5 sec
+	if(roll_counter>=3*SEC && roll_counter<=8*SEC) {
 		move_sail(500);		
 	}
 }
@@ -721,39 +654,31 @@ void sail_controller() {
  *	Calculate the waypoint positions to map an area defined as a convex polygon
  */
 void calculate_area_waypoints() {
-	
+
 	// local variable definitions
 	FILE* file_caw;
-	int interval=0, nvertexes=0, next=0, d=-1, sw=0, iRef=0;
+	int interval=0, nvertexes=0, next=0, d=-1, sw=0, iRef=0, i=0, k=0;
 	double yMin, yMax, xMin, xMax, yRef, xRef;
-	Point pw1, pw2, wayp, tmpW;
-	Point tWaypoints[1000];
+	Point pw1, pw2, wayp, tmpW, p;
+	Point tWaypoints[1000], Vertex[50];
 	Line lw,lp;
-	char vfile[30],vcoordinates[400], logline[500];
+	char str[50];
 	
 	// reset previous waypoints
 	nwaypoints=0;
 
-	// read user values from files
-	file_caw = fopen("/tmp/sailboat/Area_Interval", "r");
+	// read Area interleav from file
+	file_caw = fopen("/tmp/sailboat/area_int", "r");
 	if (file_caw != NULL) { fscanf(file_caw, "%d", &interval); fclose(file_caw); }
-	file_caw = fopen("/tmp/sailboat/Area_VertexNum", "r");
-	if (file_caw != NULL) { fscanf(file_caw, "%d", &nvertexes); fclose(file_caw); }
 	
-	Point Vertex[nvertexes];
-	for (i=0; i<nvertexes; i++) {
-		sprintf(vfile,"/tmp/sailboat/Area_v%d",i);
-		file_caw = fopen(vfile, "r");
-		if (file_caw != NULL) { fscanf(file_caw, "%lf,%lf", &Vertex[i].x, &Vertex[i].y); fclose(file_caw); }
+	// read Area vertexes from file
+	file_caw = fopen("/tmp/sailboat/area_vx" , "r");
+	if (file_caw == NULL) { perror("Error reading Area vertexes [/tmp/sailboat/area_vx]"); exit(1); }
+	while (fgets (str, 50, file_caw)!=NULL ) {
+		sscanf(str, "%lf;%lf,", &p.y, &p.x);
+		Vertex[nvertexes]=p;
+		nvertexes++;
 	}
-
-	// Save Area information to LOG file (lon,lat)
-	int offset=sprintf(logline, "%u,%d,%d%s", (unsigned)time(NULL), nvertexes, interval, vcoordinates);
-	for (i=0; i<nvertexes; i++) {
-		offset+=snprintf(logline+offset, sizeof (logline) - offset, ",%f,%f", Vertex[i].x, Vertex[i].y);
-	}
-	file_caw = fopen("sailboat-log/area/area_info", "a");
-	if (file_caw != NULL) { fprintf(file_caw, "%s\n", logline); fclose(file_caw); }
 
 	// convert vertex coordinates to XY plane
 	for (i=0; i<nvertexes; i++) Vertex[i] = convert_xy(Vertex[i]);
@@ -806,17 +731,17 @@ void calculate_area_waypoints() {
 	
 	// remove one of the two waypoints in the main vertex (expected result)
 	if (( abs(tWaypoints[0].x - tWaypoints[1].x) < 0.1 ) && ( abs(tWaypoints[0].y - tWaypoints[1].y) < 0.1 ) ) {
-		for (i=1; i<nwaypoints; i++) Waypoints[i-1]=tWaypoints[i];
+		for (i=1; i<nwaypoints; i++) AreaWaypoints[i-1]=tWaypoints[i];
 		nwaypoints--;
 	}
 	// handle precision errors: only one waypoint in the main vertex 
 	if (( abs(tWaypoints[0].x - tWaypoints[1].x) > 0.1 ) && ( abs(tWaypoints[0].y - tWaypoints[1].y) > 0.1 ) ) {
-		for (i=0; i<nwaypoints; i++) Waypoints[i]=tWaypoints[i];
+		for (i=0; i<nwaypoints; i++) AreaWaypoints[i]=tWaypoints[i];
 	}
 	// handle precision errors: no waypoints in the main vertex 
 	if (( abs(tWaypoints[0].x - tWaypoints[1].x) > 0.1 ) && ( abs(tWaypoints[0].y - tWaypoints[1].y) < 0.1 ) ) {
-		Waypoints[0]=Vertex[iRef];
-		for (i=0; i<nwaypoints; i++) Waypoints[i+1]=tWaypoints[i];
+		AreaWaypoints[0]=Vertex[iRef];
+		for (i=0; i<nwaypoints; i++) AreaWaypoints[i+1]=tWaypoints[i];
 		nwaypoints++;
 	}
 
@@ -824,57 +749,74 @@ void calculate_area_waypoints() {
 	// I hereby name this algorithm "the headless alternated paired bubble sorting" a.k.a. "the zig"	
 	for (i=1; i<nwaypoints; i+=2) {
 
-		if ((d<0) && (Waypoints[i].x > Waypoints[i+1].x)) sw=1;
-		if ((d>0) && (Waypoints[i].x < Waypoints[i+1].x)) sw=1;
+		if ((d<0) && (AreaWaypoints[i].x > AreaWaypoints[i+1].x)) sw=1;
+		if ((d>0) && (AreaWaypoints[i].x < AreaWaypoints[i+1].x)) sw=1;
 
 		if (sw==1) {
-			tmpW = Waypoints[i];
-			Waypoints[i]   = Waypoints[i+1];
-			Waypoints[i+1] = tmpW;
+			tmpW = AreaWaypoints[i];
+			AreaWaypoints[i]   = AreaWaypoints[i+1];
+			AreaWaypoints[i+1] = tmpW;
 		}
 		sw=0; d*=-1;
 	}
-
+/*
 	// requested on 28 Sep 2013: Once mapped an area, map it backward again
 	for (i=nwaypoints-2; i>=0; i--) {
-		Waypoints[nwaypoints+(nwaypoints-i)-2]=Waypoints[i];
+		AreaWaypoints[nwaypoints+(nwaypoints-i)-2]=AreaWaypoints[i];
 	}
 	nwaypoints=(2*nwaypoints)-2;
-/*
-	k=0;
+
 	// 06 Oct 2013: Mapping back the area using diagonals
-	for (i=nwaypoints-3; i>=0; i-=2) {
-		Waypoints[nwaypoints+k]=Waypoints[i];
+	k=0; for (i=nwaypoints-3; i>=0; i-=2) {
+		AreaWaypoints[nwaypoints+k]=AreaWaypoints[i];
 		k++;
 	}
 	nwaypoints=nwaypoints+k;
 */
 	// rotate back the point coordinates for the map
-	for (i=0; i<nwaypoints; i++) Waypoints[i] = rotate_point(Waypoints[i],-1*Wind_Angle);
+	for (i=0; i<nwaypoints; i++) AreaWaypoints[i] = rotate_point(AreaWaypoints[i],-1*Wind_Angle);
 
 	// convert coordinates back to Latitude-Longitude
-	for (i=0; i<nwaypoints; i++) Waypoints[i] = convert_latlon(Waypoints[i]);
+	for (i=0; i<nwaypoints; i++) AreaWaypoints[i] = convert_latlon(AreaWaypoints[i]);
 }
 
 
-void move_to_simulated_position(){
 
-	double alpha = (90-Guidance_Heading)*PI/180;
+/*
+ *	Prepare waypoints array [Go_waypoints + Area_waypoints + Return_waypoints]
+ */
+void prepare_waypoint_array() {
 	
-	double SimLon= ( (Longitude*CONVLON) + SIM_DISTANCE*cosf(alpha) )/CONVLON;
-	double SimLat= ( (Latitude*CONVLAT)  + SIM_DISTANCE*sinf(alpha) )/CONVLAT;
+	int n=0,i=0;
+	char str[50];
+	FILE* fp;
+	Point p;
+
+	// Read GO waypoints from file and add them to Waypoint Array
+	fp = fopen("/tmp/sailboat/wp_go" , "r");
+	if (fp == NULL) { perror("Error reading Waypoints_GO file [/tmp/sailboat/wp_go]"); exit(1); }
+	while (fgets (str, 50, fp)!=NULL ) {
+		sscanf(str, "%lf;%lf,", &p.y, &p.x);
+		Waypoints[n]=p;
+		n++;
+	}
 	
-	file = fopen("/tmp/sailboat/Simulated_Lat", "w");
-	if (file != NULL) { fprintf(file, "%f", SimLat); fclose(file); }
+	// Calculate the Area Waypoints and add them to the Waypoint array
+	calculate_area_waypoints();
+	nwaypoints=nwaypoints+n;
+	for (i=n; i<nwaypoints; i++) {
+		Waypoints[i]=AreaWaypoints[i-n];
+	}
 
-	file = fopen("/tmp/sailboat/Simulated_Lon", "w");
-	if (file != NULL) { fprintf(file, "%f", SimLon); fclose(file); }
+	// Read RETURN waypoints from file and add them to Waypoint Array
+	n=0; fp = fopen("/tmp/sailboat/wp_return" , "r");
+	if (fp == NULL) { perror("Error reading Waypoints_RETURN file [/tmp/sailboat/wp_return]"); exit(1); }
+	while (fgets (str, 50, fp)!=NULL ) {
+		sscanf(str, "%lf;%lf,", &p.y, &p.x);
+		Waypoints[nwaypoints]=p;
+		nwaypoints++;
+	}
 
-	file = fopen("/tmp/sailboat/Simulated_Heading", "w");
-	if (file != NULL) { fprintf(file, "%f", Guidance_Heading); fclose(file); }
-
-	Latitude=(float)SimLat;
-	Longitude=(float)SimLon;
 }
 
 
@@ -899,7 +841,7 @@ void read_weather_station() {
 	if (file != NULL) { 
 		fscanf(file, "%f", &Heading); fclose(file);
 	}
-	file = fopen("/tmp/u200/Deviation", "r");
+/*	file = fopen("/tmp/u200/Deviation", "r");
 	if (file != NULL) {
 		fscanf(file, "%f", &Deviation);	fclose(file);
 	}
@@ -907,13 +849,13 @@ void read_weather_station() {
 	if (file != NULL) {
 		fscanf(file, "%f", &Variation);	fclose(file);
 	}
-
+*/
 	//ATTITUDE
-	file = fopen("/tmp/u200/Yaw", "r");
+/*	file = fopen("/tmp/u200/Yaw", "r");
 	if (file != NULL) {
 		fscanf(file, "%f", &Yaw); fclose(file);
 	}
-	file = fopen("/tmp/u200/Pitch", "r");
+*/	file = fopen("/tmp/u200/Pitch", "r");
 	if (file != NULL) {
 		fscanf(file, "%f", &Pitch);	fclose(file);
 	}
@@ -950,6 +892,40 @@ void read_weather_station() {
 	}
 
 }
+
+
+/*
+ *	Read essential data from the Weather Station
+ */
+void read_weather_station_essential() {
+
+	//VESSEL HEADING
+	file = fopen("/tmp/u200/Heading", "r");
+	if (file != NULL) { 
+		fscanf(file, "%f", &Heading); fclose(file);
+	}
+	//GPS_DATA
+	file = fopen("/tmp/u200/Latitude", "r");
+	if (file != NULL) {
+		fscanf(file, "%f", &Latitude); fclose(file);
+	}
+	file = fopen("/tmp/u200/Longitude", "r");
+	if (file != NULL) {
+		fscanf(file, "%f", &Longitude);	fclose(file);
+	}
+	//WIND_DATA
+	file = fopen("/tmp/u200/Wind_Speed", "r");
+	if (file != NULL) {
+		fscanf(file, "%f", &Wind_Speed); fclose(file);
+	}
+	file = fopen("/tmp/u200/Wind_Angle", "r");
+	if (file != NULL) {
+		fscanf(file, "%f", &Wind_Angle); fclose(file);
+	}
+
+}
+
+
 
 /*
  *	Save all the variables of the navigation system in a log file in sailboat-log/
@@ -997,6 +973,12 @@ void write_log_file() {
 		sprintf(logfile1,"sailboat-log/logfile_%.4d_%s",file_count,timestp);
 		sprintf(logfile2,"sailboat-log/debug/debug_%.4d_%s",file_count,timestp);
 
+		// write HEADERS in log files
+		file2 = fopen(logfile1, "w");
+		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Rudder_Desired_Angle,Manual_Control_Rudder,Rudder_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
+		file2 = fopen(logfile2, "w");
+		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b\n"); fclose(file2); }
+		
 		logEntry=1;
 	}
 
