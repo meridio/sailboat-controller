@@ -36,6 +36,9 @@
 #define GAIN_P 		-1
 #define GAIN_I 		0
 
+#define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
+#define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
+
 #include "map_geometry.h"		// custom functions to handle geometry transformations on the map
 
 
@@ -56,7 +59,7 @@ void read_weather_station();
 void read_weather_station_essential();
 void read_sail_position();
 void move_rudder(int angle);
-void move_sail(int angle);
+void move_sail(int position);
 void write_log_file();
 
 struct timespec timermain;
@@ -64,11 +67,10 @@ struct timespec timermain;
 
 //guidance
 float _Complex X, X_T, X_T_b, X_b, X0;
-float integratorSum=0, Guidance_Heading=0;
+float integratorSum=0, Guidance_Heading=0, override_Guidance_Heading=-1;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0, a_x=0, b_x=0;
 int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
 int   roll_counter=0;
-
 void guidance();
 void findAngle();
 void chooseManeuver();
@@ -76,10 +78,15 @@ void performManeuver();
 void rudder_pid_controller();
 
 
+// sail hillclimbing algorithm
+int sail_hc_periods=0, sail_hc_direction=1, sail_hc_val=0;
+float sail_hc_ACC_V=0, sail_hc_OLD_V=0, sail_hc_MEAN_V=0;
+void sail_hc_controller();
+
+
 //waypoints
 int nwaypoints=0, current_waypoint=0;
 Point AreaWaypoints[1000], Waypoints[1000];
-
 void calculate_area_waypoints();
 void prepare_waypoint_array();
 
@@ -118,8 +125,8 @@ int main(int argc, char ** argv) {
 				read_sail_position();			// Read sail actuator feedback
 				guidance();				// Calculate the desired heading
 				rudder_pid_controller();		// Calculate the desired rudder position
-				move_rudder(Rudder_Desired_Angle);	// Move rudder
-				//sail_controller();			// Emergency Sail release
+				//sail_controller();			// Execute the default sail controller
+				//sail_hc_controller();			// Execute the sail hillclimbing algorithm
 
 				// reaching the waypoint
 				if  ( (cabs(X_T - X) < RADIUSACCEPTED) && (Navigation_System==1) )
@@ -186,6 +193,8 @@ void initfiles() {
 	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 	&& echo 0 > /tmp/sailboat/Guidance_Heading");
 	system("[ ! -f /tmp/sailboat/Rudder_Feedback ] 		&& echo 0 > /tmp/sailboat/Rudder_Feedback");
 	system("[ ! -f /tmp/sailboat/Sail_Feedback ] 		&& echo 0 > /tmp/sailboat/Sail_Feedback");
+
+	system("[ ! -f /tmp/sailboat/override_Guidance_Heading ] && echo -1 > /tmp/sailboat/override_Guidance_Heading");
 }
 
 /*
@@ -288,36 +297,6 @@ void onNavChange() {
 }
 
 
-/*
- *	Move the rudder to the desired position.
- *	Write the desired angle to a file [Navigation_System_Rudder] to be handled by another process 
- */
-void move_rudder(int angle) {
-	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "w");
-	if (file != NULL) { fprintf(file, "%d", angle);	fclose(file); }
-}
-
-/*
- *	Move the main sail to the desired position.
- *	Write the desired angle to a file [Navigation_System_Sail] to be handled by another process 
- */
-void move_sail(int angle) {
-	file = fopen("/tmp/sailboat/Navigation_System_Sail", "w");
-	if (file != NULL) { fprintf(file, "%d", angle);	fclose(file); }
-}
-
-/*
- *	Read END point coordinates (latitude and longitude)
- *	Coordinates format is DD
- */
-void read_endpoint_coordinates() {
-
-	file = fopen("/tmp/sailboat/Point_End_Lat", "r");
-	if (file != NULL) { fscanf(file, "%f", &Point_End_Lat);	fclose(file); }
-
-	file = fopen("/tmp/sailboat/Point_End_Lon", "r");
-	if (file != NULL) { fscanf(file, "%f", &Point_End_Lon);	fclose(file);}
-}
 
 
 /*
@@ -404,8 +383,16 @@ void guidance()
 	//theta_d = theta_d1;		// Do we need this one?
 	//******************************************************************
 
-	sig = sig3;
 	// When translating from Matlab code to C, this seems an easy way of translation.
+	sig = sig3;
+	
+
+	// OVERRIDE GUIDANCE HEADING with user defined value [from "thesis" branch]
+	file = fopen("/tmp/sailboat/override_Guidance_Heading", "r");
+	if (file != NULL) { fscanf(file, "%f", &override_Guidance_Heading); fclose(file); }
+	if (override_Guidance_Heading != -1) {
+		Guidance_Heading = override_Guidance_Heading;
+	}
 
 	// write guidance_heading to file to be displayed in GUI 
 	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
@@ -682,6 +669,9 @@ void rudder_pid_controller() {
 	Rudder_Desired_Angle = round(temp_ang);
 	if(Rudder_Desired_Angle > 35) {Rudder_Desired_Angle=35; }
 	if(Rudder_Desired_Angle < -35) {Rudder_Desired_Angle=-35; }
+
+	// Move rudder
+	move_rudder(Rudder_Desired_Angle);
 }
 
 
@@ -705,6 +695,44 @@ void sail_controller() {
 	if(roll_counter>=3*SEC && roll_counter<=8*SEC) {
 		move_sail(500);		
 	}
+}
+
+
+/*
+ *	MAIN SAIL CONTROLLER (based on hillclimbing function) [from "thesis" branch]
+ *
+ *	Actuates the sail in one direction for [SAIL_ACT_TIME] seconds
+ *	Calculate the mean velocity of the boat on a period of [SAIL_OBS_TIME] seconds
+ *	If the velocity is increasing keep moving in the same direction, otherwise change direction
+ */
+void sail_hc_controller() {
+
+	// MEASURE
+	sail_hc_ACC_V+=SOG;
+
+	if(sail_hc_periods == SAIL_ACT_TIME*4) {
+
+		// STOP MOVING THE ACTUATOR
+		sail_hc_val=250;
+		move_sail(sail_hc_val);
+	}
+
+	if(sail_hc_periods >= SAIL_OBS_TIME*4) {
+
+		sail_hc_MEAN_V = sail_hc_ACC_V / sail_hc_periods;
+
+		// TAKE DECISION
+		if (sail_hc_MEAN_V < sail_hc_OLD_V) { sail_hc_direction*=-1; }
+
+		// START MOVING THE ACTUATOR
+		if (sail_hc_direction==1) sail_hc_val=500; else sail_hc_val=0;
+		move_sail(sail_hc_val);
+
+		sail_hc_OLD_V = sail_hc_MEAN_V;
+		sail_hc_periods=0; sail_hc_ACC_V=0;
+	}
+
+	sail_hc_periods++;
 }
 
 
@@ -983,6 +1011,25 @@ void read_weather_station_essential() {
 
 }
 
+
+/*
+ *	Move the rudder to the desired position.
+ *	Write the desired angle to a file [Navigation_System_Rudder] to be handled by another process 
+ */
+void move_rudder(int angle) {
+	file = fopen("/tmp/sailboat/Navigation_System_Rudder", "w");
+	if (file != NULL) { fprintf(file, "%d", angle);	fclose(file); }
+}
+
+/*
+ *	Move the main sail to the desired position.
+ *	Write the desired angle to a file [Navigation_System_Sail] to be handled by another process 
+ */
+void move_sail(int position) {
+	file = fopen("/tmp/sailboat/Navigation_System_Sail", "w");
+	if (file != NULL) { fprintf(file, "%d", position); fclose(file); }
+}
+
 /*
  *	Read Sail actuator feedback
  */
@@ -1046,7 +1093,7 @@ void write_log_file() {
 		file2 = fopen(logfile1, "w");
 		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Rudder_Desired_Angle,Manual_Control_Rudder,Rudder_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
 		file2 = fopen(logfile2, "w");
-		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b,a_x,b_x,X_b,X_T_b\n"); fclose(file2); }
+		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b,a_x,b_x,X_b,X_T_b,sail_hc_periods,sail_hc_direction,sail_hc_val,sail_hc_MEAN_V\n"); fclose(file2); }
 		
 		logEntry=1;
 	}
@@ -1086,7 +1133,7 @@ void write_log_file() {
 
 
 	// generate csv DEBUG line
-	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f_%fi,%f_%fi" \
+	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f_%fi,%f_%fi,%d,%d,%d,%.2f" \
 		, (unsigned)time(NULL) \
 		, sig1 \
 		, sig2 \
@@ -1100,6 +1147,10 @@ void write_log_file() {
 		, b_x \
 		, creal(X_T), cimag(X_T) \
 		, creal(X_T_b), cimag(X_T_b) \
+		, sail_hc_periods \
+		, sail_hc_direction \
+		, sail_hc_val \
+		, sail_hc_MEAN_V \
 	);
 	// write to DEBUG file
 	file2 = fopen(logfile2, "a");
