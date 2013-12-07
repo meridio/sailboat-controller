@@ -36,6 +36,13 @@
 #define GAIN_P 		-1
 #define GAIN_I 		0
 
+#define BoomLength	1.3 		// [meters] Length of the Boom
+#define SCLength	1.6 		// [meters] horizontal distance between sheet hole and mast
+#define SCHeight	0.5 		// [meters] vertical distance between sheet hole and boom.
+#define theta_tack	30 		// [degrees]
+#define theta_reach	50 		// [degrees]
+#define theta_running	80 		// [degrees]
+
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
 
@@ -211,7 +218,7 @@ void initfiles() {
  *
  *	if Manual_Control is ON, read the following values:
  *		- [Manual_Control_Rudder] : user value for desired RUDDER angle [-30.0 to 30.0]
- *		- [Manual_Control_Sail]   : user value for desired SAIL angle 
+ *		- [Manual_Control_Sail]   : user value for desired SAIL position [0 to 500] 
  */
 void check_navigation_system() {
 
@@ -313,8 +320,8 @@ void onNavChange() {
 void guidance() 
 {
 	// GUIDANCE V3: nogozone, tack and jibe capable solution
-	//        - Let's try to keep the order using sig,sig1,sig2,sig3 and theta_d,theta_d1. theta_d_b is actually needed in the chooseManeuver function.
-	//        - lat and lon translation would be better on the direct input
+	//  - Let's try to keep the order using sig,sig1,sig2,sig3 and theta_d,theta_d1. theta_d_b is actually needed in the chooseManeuver function.
+	//  - lat and lon translation would be better on the direct input
 	float x, y, theta_wind;
 	float _Complex Geo_X, Geo_X0, Geo_X_T;
 
@@ -442,7 +449,7 @@ void findAngle()
 	b_x = TACKINGRANGE / (2 * sin(theta_LOS));
 
 	// stop signal
-	if (cabs(X_T - X) < RADIUSACCEPTED)        { inrange = true; }
+	if (cabs(X_T - X) < RADIUSACCEPTED) { inrange = true; }
 	else { inrange = false; }
 
 	// compute the next theta_d, ie at time t+1
@@ -676,30 +683,65 @@ void rudder_pid_controller() {
 
 
 /*
- *	Emergency Control for the main sail actuator:
+ *	SAIL CONTROLLER (default)
  *
- *	If the ROLL value is greater then a certain threshold, we start releasing the sail.
- *	After 3 seconds we are in the nominal ROLL range, we start tightening the sail for 5 seconds.
+ *	Controls the angle of the sail and implements an Emergency sail release when the boat's
+ *	roll value exceeds a predefined threshold. Input to this function is [Wind_Angle]
  */
 void sail_controller() {
 
-	// Emergency Sail Release	
-	if(abs(Roll)>ROLL_LIMIT) { 
-		move_sail(0);		
-		roll_counter=0;
-	} else {
-		roll_counter++;
-	}
+	float C=0;			// desired sheet length
+	float BWA=0, sail_angle=0;
+
+
+	// The wA should be the angle of the wind compared to the boat.
+	// Hence wA is a function of Wind_Angle and Heading (both in degrees)
+
+	BWA = (Heading - Wind_Angle)*PI/180; 	// [rad] BwA: Boat wind Angle, clockwise from 'nose'.
+	BWA = atan2(sin(BWA),cos(BWA));		// puts out a value [-PI;PI]
 	
-	// After 3 sec under roll threshold, keep tightening the main sail for the next 5 sec
-	if(roll_counter>=3*SEC && roll_counter<=8*SEC) {
-		move_sail(500);		
+	if ( BWA < 0 ) { BWA = -BWA; }		// puts BWA=[0;PI]
+
+	if ( BWA > (PI+PI/4) ) { sail_angle = BWA-(3*PI/4); }
+	if ( BWA < (PI-PI/4) ) { sail_angle = BWA-(3*PI/4); }
+
+	if ( BWA < (PI+PI/4) && BWA > (PI-PI/4) ) { move_sail(0); }
+
+	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(sail_angle) + SCHeight*SCHeight);
+
+	// Then C should be translated into the position of main sail actuator
+	// Assuming the actuator to be outside at 0 and in at 500:
+	Sail_Desired_Position = C/3;
+
+	// If the boat tilts too much
+	if(abs(Roll)>ROLL_LIMIT) 
+	{ 
+		// Start Loosing the sail
+		move_sail(0);                
+		roll_counter=0;
+	} 
+	else
+	{
+		if(roll_counter<10*SEC) { roll_counter++; }
 	}
+
+	// If it is time to jibe
+	if (roll_counter > 5*SEC && sig3 > 0) 
+	{
+		// Start Tightening the sail
+		move_sail(500);
+	}
+	else
+	{
+		// Normal sail tuning
+		if(roll_counter > 5*SEC) { move_sail(Sail_Desired_Position); }
+	}
+
 }
 
 
 /*
- *	MAIN SAIL CONTROLLER (based on hillclimbing function) [from "thesis" branch]
+ *	SAIL CONTROLLER (based on hillclimbing function) [from "thesis" branch]
  *
  *	Actuates the sail in one direction for [SAIL_ACT_TIME] seconds
  *	Calculate the mean velocity of the boat on a period of [SAIL_OBS_TIME] seconds
@@ -1091,7 +1133,7 @@ void write_log_file() {
 
 		// write HEADERS in log files
 		file2 = fopen(logfile1, "w");
-		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Rudder_Desired_Angle,Manual_Control_Rudder,Rudder_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
+		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Rudder_Desired_Angle,Manual_Control_Rudder,Rudder_Feedback,Sail_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
 		file2 = fopen(logfile2, "w");
 		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b,a_x,b_x,X_b,X_T_b,sail_hc_periods,sail_hc_direction,sail_hc_val,sail_hc_MEAN_V\n"); fclose(file2); }
 		
@@ -1104,7 +1146,7 @@ void write_log_file() {
 
 
 	// generate csv LOG line
-	sprintf(logline, "%u,%d,%d,%.1f,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%f,%f,%.1f,%.3f,%.2f,%.2f,%f,%f,%f,%f" \
+	sprintf(logline, "%u,%d,%d,%.1f,%d,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%f,%f,%.1f,%.3f,%.2f,%.2f,%f,%f,%f,%f" \
 		, (unsigned)time(NULL) \
 		, Navigation_System \
 		, Manual_Control \
@@ -1112,6 +1154,7 @@ void write_log_file() {
 		, Rudder_Desired_Angle \
 		, Manual_Control_Rudder \
 		, Rudder_Feedback \
+		, Sail_Feedback \
 		, Rate \
 		, Heading \
 		, Pitch \
