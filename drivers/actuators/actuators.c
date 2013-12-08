@@ -15,7 +15,7 @@
 /* TO DO
  - Calibrate CONVERTION_VALUE
  - implement hall counter module or function
- - Enable = 0 when in neutral and ramp'd down ? only an idea.. lets see on the current flow
+ - Enable = 1 when in neutral and ramp'd down ? only an idea.. lets see on the current flow
  */
 
 #include "actuators.h"
@@ -212,20 +212,21 @@ void init_io() {
 	/*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
 	 * 
 	 */
+	system("devmem2 0x480021c6 h 0x10c"); //GPIO 170
 	system("devmem2 0x480021c8 h 0x10c"); //GPIO 171
-	system("devmem2 0x480021ca h 0x10c"); //GPIO 172
+	//system("devmem2 0x480021ca h 0x10c"); //GPIO 172
 	//system("devmem2 0x480021cc h 0x10c"); //GPIO 173
 	//system("devmem2 0x480021ce h 0x10c"); //GPIO 174
+	system("echo 170 > /sys/class/gpio/export");
 	system("echo 171 > /sys/class/gpio/export");
-	system("echo 172 > /sys/class/gpio/export");
+	system("echo out > /sys/class/gpio/gpio170/direction");
 	system("echo out > /sys/class/gpio/gpio171/direction");
-	system("echo out > /sys/class/gpio/gpio172/direction");
-
-	system("echo 1 > /sys/class/gpio/gpio171/value");	//Can stay here for now.. but later maybe be used, see TODO list ref. EN.
-	system("echo 1 > /sys/class/gpio/gpio172/value");
-
+	
 	//install pwm module
-	system("insmod pwm.ko");
+	system("insmod pwm.ko");	
+
+	system("echo 0 > /sys/class/gpio/gpio170/value");	//Disable LOW, thereby working actuator.
+	system("echo 0 > /sys/class/gpio/gpio171/value");	//Enable HIGH (inversed signal), meaning motor driver is on.
 
 }
 
@@ -245,37 +246,37 @@ void read_desired_sail_length_values() {
 	fprintf(stdout, "desired length: %d\n", desired_length);
 }
 void move_rudder_left(int duty_loc) {
-	file = fopen("/dev/pwm10", "w");
+	file = fopen("/dev/pwm8", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
-	file = fopen("/dev/pwm11", "w");
+	file = fopen("/dev/pwm9", "w");
 	fprintf(file, "%d", duty_loc);
 	fclose(file);
 	fprintf(stdout, "rudder going left, duty: %d\n", duty_loc);
 }
 void move_rudder_right(int duty_loc) {
-	file = fopen("/dev/pwm11", "w");
+	file = fopen("/dev/pwm9", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
-	file = fopen("/dev/pwm10", "w");
+	file = fopen("/dev/pwm8", "w");
 	fprintf(file, "%d", duty_loc);
 	fclose(file);
 	fprintf(stdout, "rudder going right, duty: %d\n", duty_loc);
 }
-void move_sail_left(int duty_loc) {
-	file = fopen("/dev/pwm8", "w");
+void move_sail_right(int duty_loc) {
+	file = fopen("/dev/pwm10", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
-	file = fopen("/dev/pwm9", "w");
+	file = fopen("/dev/pwm11", "w");
 	fprintf(file, "%d", duty_loc);
 	fclose(file);
 	fprintf(stdout, "sail going left, duty: %d\n", duty_loc);
 }
-void move_sail_right(int duty_loc) {
-	file = fopen("/dev/pwm9", "w");
+void move_sail_left(int duty_loc) {
+	file = fopen("/dev/pwm11", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
-	file = fopen("/dev/pwm8", "w");
+	file = fopen("/dev/pwm10", "w");
 	fprintf(file, "%d", duty_loc);
 	fclose(file);
 	fprintf(stdout, "sail going right, duty: %d\n", duty_loc);
@@ -309,20 +310,20 @@ void ramp_up_sail_right(int final_duty) {
 	}
 }
 void stop_rudder(void) {
-	file = fopen("/dev/pwm11", "w");
+	file = fopen("/dev/pwm9", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
-	file = fopen("/dev/pwm10", "w");
+	file = fopen("/dev/pwm8", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
 	fprintf(stdout, "rudder stopped");
 	sleep_ms(5);
 }
 void stop_sail(void) {
-	file = fopen("/dev/pwm9", "w");
+	file = fopen("/dev/pwm11", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
-	file = fopen("/dev/pwm8", "w");
+	file = fopen("/dev/pwm10", "w");
 	fprintf(file, "%d", 0);
 	fclose(file);
 	fprintf(stdout, "sail stopped");
