@@ -25,9 +25,9 @@
 
 #define JIBE_ANGLE	40		// [degrees] Rudder angle while jibing
 #define theta_nogo	55*PI/180	// [radians] Angle of nogo zone, compared to wind direction
-#define theta_down	20*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
+#define theta_down	30*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
 #define v_min 		0.1	  	// [Km/h] Min velocity for tacking
-#define angle_lim 	PI/4
+#define angle_lim 	10*PI/180
 #define ROLL_LIMIT 	5		// Threshold for an automatic emergency sail release
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
@@ -36,9 +36,9 @@
 #define GAIN_P 		-1
 #define GAIN_I 		0
 
-#define BoomLength	1.3 		// [meters] Length of the Boom
-#define SCLength	1.6 		// [meters] horizontal distance between sheet hole and mast
-#define SCHeight	0.5 		// [meters] vertical distance between sheet hole and boom.
+#define BoomLength	1.6 		// [meters] Length of the Boom
+#define SCLength	1.43 		// [meters] horizontal distance between sheet hole and mast
+#define SCHeight	0.6		// [meters] vertical distance between sheet hole and boom.
 #define theta_tack	30 		// [degrees]
 #define theta_reach	50 		// [degrees]
 #define theta_running	80 		// [degrees]
@@ -68,6 +68,7 @@ void read_sail_position();
 void move_rudder(int angle);
 void move_sail(int position);
 void write_log_file();
+int  sign(float val);
 
 struct timespec timermain;
 
@@ -76,6 +77,7 @@ struct timespec timermain;
 float _Complex X, X_T, X_T_b, X_b, X0;
 float integratorSum=0, Guidance_Heading=0, override_Guidance_Heading=-1;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0, a_x=0, b_x=0;
+float theta_pM=0, theta_pM_b=0, theta_d_out=0;
 int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
 int   roll_counter=0;
 void guidance();
@@ -382,25 +384,19 @@ void guidance()
 
 	// Updating the history angle, telling the guidance heading from last iteration
 	theta_d_b = theta_d1_b;
+	sig = sig3;
 
 	// Inverse turning matrix
 	theta_d1 = theta_d1_b-theta_wind;
-	Guidance_Heading = (PI/2 - theta_d1) * 180/PI; 
+	theta_pM = theta_pM_b-theta_wind;
+
+	if ( sig3>0 ) { theta_d_out = theta_pM; }
+	else { theta_d_out = theta_d1; }
+	Guidance_Heading = (PI/2 - theta_d_out) * 180/PI; 
 
 	//******************************************************************
-	//theta_d = theta_d1;		// Do we need this one?
+	//theta_d = theta_d1;                // Do we need this one?
 	//******************************************************************
-
-	// When translating from Matlab code to C, this seems an easy way of translation.
-	sig = sig3;
-	
-
-	// OVERRIDE GUIDANCE HEADING with user defined value [from "thesis" branch]
-	file = fopen("/tmp/sailboat/override_Guidance_Heading", "r");
-	if (file != NULL) { fscanf(file, "%f", &override_Guidance_Heading); fclose(file); }
-	if (override_Guidance_Heading != -1) {
-		Guidance_Heading = override_Guidance_Heading;
-	}
 
 	// write guidance_heading to file to be displayed in GUI 
 	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
@@ -408,7 +404,6 @@ void guidance()
 		fprintf(file, "%4.1f", Guidance_Heading);
 		fclose(file);
 	}
-
 }
 
 void findAngle() 
@@ -539,61 +534,41 @@ void chooseManeuver()
 	// This decision incorporates two steps: 1. Is the desired heading on the other side of the deadzone? 
 	// Then we need to jibe or tack. 2. Do we have enough speed for tacking? According to this it chooses sig.
 
-	float dAngle, d1Angle;
+	// float dAngle, d1Angle;
 	float _Complex X_d_b, X_d1_b;
-
-	// The two angle distances to wind direction clockwise.
-	dAngle = PI/2 - theta_d_b;
-	dAngle = atan2(sin(dAngle),cos(dAngle));
-	d1Angle = PI/2 - theta_d1_b;                
-	d1Angle = atan2(sin(d1Angle),cos(d1Angle));
 
 	// Definition of X_d1_b and X_d_b
 	X_d_b = ccos(theta_d_b) + I*(csin(theta_d_b));
 	X_d1_b = ccos(theta_d1_b) + I*(csin(theta_d1_b));
 
-	if (cimag(X_d1_b) > 0 && cimag(X_d_b) > 0 && SOG > v_min)
-	{
-		// If the old heading and the new heading is close to the wind, then tack.
-		sig2 = 0;
-	}
+	if ( sign(creal(X_d_b)) == sign(creal(X_d1_b)) )
+	{ sig2=0; }			//course change
 	else
 	{
-		if (abs(d1Angle-dAngle) < PI/4)
-		{
-			// For small deviations, course change.
-			sig2 = 0;
-		}
+		if ( cimag(X_d_b) > 0 && cimag(X_d1_b) > 0 && SOG > v_min )
+		{ sig2=0; }	//tack
 		else
-		{
-			if (d1Angle > dAngle)
-			{
-				// jibe over port (going left/counterclockwise around)
-				sig2 = 1;
-			}
+		{		//jibe
+			if ( creal(X_d_b) < 0 )
+			{ sig2=1; }	//left
 			else
-			{
-				if (d1Angle < dAngle)
-				{
-					// jibe over starboard (going right/clockwise around)
-					sig2 = 2;
-				}
-				else
-				{ 
-					// This else shouldn’t occur, but as a safety it is implemented.
-					sig2 = 0;                
-					printf("\n >>>>>> you can't see me! >>>>>>>>>>>>>> \n");
-				}
-			}
+			{ sig2=2; }	//right
 		}
 	}
 }
 
+int sign(float val){
+	if (val > 0) return 1;	// is greater then zero
+	if (val < 0) return -1;	// is less then zero
+	return 0;		// is zero
+}
+
+
 
 void performManeuver()
 {
-	float v_b1, v_b2, v_d1_b1, v_d1_b2;
-	float _Complex Xdl, Xdr;
+	// float v_b1, v_b2, v_d1_b1, v_d1_b2;
+	float _Complex Xdl, Xdr, X_h, X_pM;
 	// I claim, we don't need this any more! theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
 
 	if (debug) printf("theta_b: %f\n",theta_b);
@@ -603,29 +578,38 @@ void performManeuver()
 	Xdl = -sin(theta_down)*2.8284 + I*cos(theta_down)*2.8284;
 	Xdr = sin(theta_down)*2.8284 + I*cos(theta_down)*2.8284;
 
-	// defining direction unit vectors
-	v_b1 = cos(theta_b);
-	v_b2 = sin(theta_b);
-	v_d1_b1 = cos(theta_d1_b);
-	v_d1_b2 = sin(theta_d1_b);
-
-	if ( cos(angle_lim) < (v_b1*v_d1_b1 + v_b2*v_d1_b2) && Sail_Feedback==500 ) 
-	{
-		// When the heading approaches the desired heading and the sail is tight, sig3 is reset.
-		sig3 = 0;
-	}
-	else { sig3 = sig2;}
-
-	//In the lack of vectors, we define it with a case structure:
-	switch(sig3)
+	//Defining the headings during the maneuver.
+	switch(sig2)
 	{
 		case 1:
-			theta_d1_b = atan2(cimag(Xdr),creal(Xdr));
-			break;	
+			theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+			break;        
 		case 2:
-			theta_d1_b = atan2(cimag(Xdl),creal(Xdl));
+			theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
 			break;
-	}	
+		case 3:
+			theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+			break;
+		case 4:
+			theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+			break;
+	}
+
+	// defining direction unit vectors
+	X_h = -sin(theta_b) + I*cos(theta_b);
+	X_pM = -sin(theta_pM_b) + I*cos(theta_pM_b);
+
+	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && sig2<3 && Sail_Feedback>490) // Here 'Sail_Feedback=500' means that the actuator is as short as possible, hence the sail is tight.
+	{
+		// When the heading approaches the desired heading and the sail is tight, the jibe is performed.
+		if (sig2==1) { sig3=3; }
+		else { sig3=4; }
+	}
+	else {
+		if( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && sig2>2 )
+		{ sig3 = 0; }
+		else {sig3 = sig2;}
+	}
 }
 
 
