@@ -42,6 +42,7 @@
 #define theta_tack	30 		// [degrees]
 #define theta_reach	50 		// [degrees]
 #define theta_running	80 		// [degrees]
+#define strokelength	1		// [meters] actuator length
 
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
@@ -686,17 +687,27 @@ void sail_controller() {
 	BWA = atan2(sin(BWA),cos(BWA));		// puts out a value [-PI;PI]
 	
 	if ( BWA < 0 ) { BWA = -BWA; }		// puts BWA=[0;PI]
+		
 
-	if ( BWA > (PI+PI/4) ) { sail_angle = BWA-(3*PI/4); }
-	if ( BWA < (PI-PI/4) ) { sail_angle = BWA-(3*PI/4); }
-
-	if ( BWA < (PI+PI/4) && BWA > (PI-PI/4) ) { move_sail(0); }
+	if ( BWA < theta_nogo ) { sail_angle = 0; }
+	else
+	{
+		if ( BWA < PI*3/4 ) { sail_angle = BWA-(3*PI/4); }
+		else
+		{
+			if ( BWA < (PI*17/18) ) { sail_angle=1.23; }
+			else { sail_angle = 0; }
+		}
+	}
 
 	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(sail_angle) + SCHeight*SCHeight);
 
 	// Then C should be translated into the position of main sail actuator
 	// Assuming the actuator to be outside at 0 and in at 500:
-	Sail_Desired_Position = C/3;
+	Sail_Desired_Position = -500/(strokelength*3)*C+500+500/(strokelength*3)*Height;
+
+	if ( Sail_Desired_Position > 500 ) Sail_Desired_Position=500; 
+	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
 
 	// If the boat tilts too much
 	if(abs(Roll)>ROLL_LIMIT) 
@@ -723,6 +734,7 @@ void sail_controller() {
 	}
 
 }
+
 
 
 /*
