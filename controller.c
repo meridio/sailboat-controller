@@ -94,8 +94,8 @@ void sail_hc_controller();
 //waypoints
 int nwaypoints=0, current_waypoint=0;
 Point AreaWaypoints[1000], Waypoints[1000];
-void calculate_area_waypoints();
-void prepare_waypoint_array();
+int calculate_area_waypoints();
+int prepare_waypoint_array();
 
 
 
@@ -287,11 +287,12 @@ void onNavChange() {
 	if(Navigation_System==4) {
 
 		// Read WP_GO, WP_RETURN, calculate Area waypoints and put all together
-		prepare_waypoint_array();
+		if (prepare_waypoint_array()) {
 
-		// Start sailing	
-		file = fopen("/tmp/sailboat/Navigation_System", "w");	
-		if (file != NULL) { fprintf(file, "1"); fclose(file); }	
+			// Start sailing	
+			file = fopen("/tmp/sailboat/Navigation_System", "w");	
+			if (file != NULL) { fprintf(file, "1"); fclose(file); }	
+		}
 	}
 	
 
@@ -781,7 +782,7 @@ void sail_hc_controller() {
 /*
  *	Calculate the waypoint positions to map an area defined as a convex polygon
  */
-void calculate_area_waypoints() {
+int calculate_area_waypoints() {
 
 	// local variable definitions
 	FILE* file_caw;
@@ -798,10 +799,11 @@ void calculate_area_waypoints() {
 	// read Area interleav from file
 	file_caw = fopen("/tmp/sailboat/area_int", "r");
 	if (file_caw != NULL) { fscanf(file_caw, "%d", &interval); fclose(file_caw); }
+	else return 0;
 	
 	// read Area vertexes from file
 	file_caw = fopen("/tmp/sailboat/area_vx" , "r");
-	if (file_caw == NULL) { perror("Error reading Area vertexes [/tmp/sailboat/area_vx]"); exit(1); }
+	if (file_caw == NULL) { perror("Error reading Area vertexes [/tmp/sailboat/area_vx]"); return 0; }
 	while (fgets (str, 50, file_caw)!=NULL ) {
 		sscanf(str, "%lf;%lf,", &p.y, &p.x);
 		Vertex[nvertexes]=p;
@@ -906,6 +908,8 @@ void calculate_area_waypoints() {
 
 	// convert coordinates back to Latitude-Longitude
 	for (i=0; i<nwaypoints; i++) AreaWaypoints[i] = convert_latlon(AreaWaypoints[i]);
+	
+	return 1;
 }
 
 
@@ -913,7 +917,7 @@ void calculate_area_waypoints() {
 /*
  *	Prepare waypoints array [Go_waypoints + Area_waypoints + Return_waypoints]
  */
-void prepare_waypoint_array() {
+int prepare_waypoint_array() {
 	
 	int n=0,i=0;
 	char str[50];
@@ -922,7 +926,7 @@ void prepare_waypoint_array() {
 
 	// Read GO waypoints from file and add them to Waypoint Array
 	fp = fopen("/tmp/sailboat/wp_go" , "r");
-	if (fp == NULL) { perror("Error reading Waypoints_GO file [/tmp/sailboat/wp_go]"); exit(1); }
+	if (fp == NULL) { perror("Error reading Waypoints_GO file [/tmp/sailboat/wp_go]"); return 0; }
 	while (fgets (str, 50, fp)!=NULL ) {
 		sscanf(str, "%lf;%lf,", &p.y, &p.x);
 		Waypoints[n]=p;
@@ -930,7 +934,7 @@ void prepare_waypoint_array() {
 	}
 	
 	// Calculate the Area Waypoints and add them to the Waypoint array
-	calculate_area_waypoints();
+	if (!calculate_area_waypoints()) return 0;
 	nwaypoints=nwaypoints+n;
 	for (i=n; i<nwaypoints; i++) {
 		Waypoints[i]=AreaWaypoints[i-n];
@@ -938,13 +942,14 @@ void prepare_waypoint_array() {
 
 	// Read RETURN waypoints from file and add them to Waypoint Array
 	n=0; fp = fopen("/tmp/sailboat/wp_return" , "r");
-	if (fp == NULL) { perror("Error reading Waypoints_RETURN file [/tmp/sailboat/wp_return]"); exit(1); }
+	if (fp == NULL) { perror("Error reading Waypoints_RETURN file [/tmp/sailboat/wp_return]"); return 0; }
 	while (fgets (str, 50, fp)!=NULL ) {
 		sscanf(str, "%lf;%lf,", &p.y, &p.x);
 		Waypoints[nwaypoints]=p;
 		nwaypoints++;
 	}
-
+	
+	return 1;
 }
 
 
@@ -1133,7 +1138,7 @@ void write_log_file() {
 
 		// write HEADERS in log files
 		file2 = fopen(logfile1, "w");
-		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Rudder_Desired_Angle,Manual_Control_Rudder,Rudder_Feedback,Sail_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
+		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Manual_Ctrl_Rudder,Rudder_Desired_Angle,Rudder_Feedback,Manual_Ctrl_Sail,Sail_Desired_Pos,Sail_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
 		file2 = fopen(logfile2, "w");
 		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b,a_x,b_x,X_b,X_T_b,sail_hc_periods,sail_hc_direction,sail_hc_val,sail_hc_MEAN_V\n"); fclose(file2); }
 		
@@ -1146,14 +1151,16 @@ void write_log_file() {
 
 
 	// generate csv LOG line
-	sprintf(logline, "%u,%d,%d,%.1f,%d,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%f,%f,%.1f,%.3f,%.2f,%.2f,%f,%f,%f,%f" \
+	sprintf(logline, "%u,%d,%d,%.1f,%d,%d,%d,%d,%d,%d,%.4f,%.4f,%.4f,%.4f,%f,%f,%.1f,%.3f,%.2f,%.2f,%f,%f,%f,%f" \
 		, (unsigned)time(NULL) \
 		, Navigation_System \
 		, Manual_Control \
 		, Guidance_Heading \
-		, Rudder_Desired_Angle \
 		, Manual_Control_Rudder \
+		, Rudder_Desired_Angle \
 		, Rudder_Feedback \
+		, Manual_Control_Sail \
+		, Sail_Desired_Position \
 		, Sail_Feedback \
 		, Rate \
 		, Heading \
