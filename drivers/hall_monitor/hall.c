@@ -16,8 +16,10 @@
 #include <linux/time.h>
 #include <linux/types.h>
 
-#define GPIO_HALLA		60     	// 60 = gpio1_28 (1 * 32 + 28 = 60) // P9_12 on Beaglebone Black
-#define GPIO_HALLB		30		// 30 = gpio0_30 (0 * 32 + 30 = 30) // P9_11 on Beaglebone Black
+#define GPIO_HALLA		174     	//
+#define GPIO_HALLB		175			//
+#define GPIO_IN			172			//
+#define GPIO_OUT		173			//
 #define DEBOUNCE_DELAY 	50
 #define HALL_MAX		500		//The length of sail actuator!
 static dev_t first; // Global variable for the first device number
