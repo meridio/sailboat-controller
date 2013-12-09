@@ -2,8 +2,7 @@ obj-m += hall.o
 
 CROSS = arm-linux-gnueabi-
 
-KDIR = /home/birkiro/beaglebone-dev/kernel
-
+KDIR = /home/b4me/MDB/Gumstix-Overo-Kernel/kernel
 PWD := $(shell pwd)
 
 all:

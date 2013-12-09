@@ -7,14 +7,18 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/platform_device.h>
+#include <linux/gpio.h>
 #include <linux/fs.h>
 #include <linux/errno.h>
+#include <asm/uaccess.h>
+#include <linux/version.h>
+#include <linux/types.h>
+#include <linux/kdev_t.h>
 #include <linux/device.h>
 #include <linux/cdev.h>
-#include <linux/kdev_t.h>
 #include <linux/interrupt.h>
 #include <linux/time.h>
-#include <linux/types.h>
 
 #define GPIO_HALLA		174     	//
 #define GPIO_HALLB		175			//
@@ -158,7 +162,7 @@ static irqreturn_t hallb_falling_handler(int irq, void *dev_id) {
  * .read
  */
 static ssize_t hall_read(struct file* F, char *buf, size_t count, loff_t *f_pos) {
-	printk(KERN_INFO "hall length: %d\n", hall_count);
+	printk(KERN_INFO "hall length: %d\n", hall_length);
 
 	char buffer[10];
 
@@ -257,7 +261,7 @@ static int __init init_hall(void)
 		unregister_chrdev_region( first, 2 );
 		return -1;
 	}
-	cdev_init( &c_dev, &FileOps1 );
+	cdev_init( &c_dev, &FileOps );
 
 	if( cdev_add( &c_dev, first, 1 ) == -1)
 	{
@@ -358,7 +362,7 @@ static int __init init_hall(void)
 	/*
 	 * Module exit function
 	 */
-	static void __exit cleanup_hall(void)
+	void __exit cleanup_hall(void)
 	{
 		cdev_del( &c_dev );
 		device_destroy( cl, first );
@@ -373,8 +377,8 @@ static int __init init_hall(void)
 		gpio_free(GPIO_HALLB);
 	}
 
-	module_init( init_hall);
-	module_exit( cleanup_hall);
+	module_init(init_hall);
+	module_exit(cleanup_hall);
 
 	MODULE_AUTHOR("Bjorn Smith");
 	MODULE_LICENSE("GPL");
