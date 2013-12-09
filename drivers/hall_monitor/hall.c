@@ -4,21 +4,21 @@
  *  Created on: Nov 18, 2013
  *      Author: Bjørn Smith @ SDU.dk
  */
-#include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/init.h>
-#include <linux/platform_device.h>
-#include <linux/gpio.h>
-#include <linux/fs.h>
-#include <linux/errno.h>
-#include <asm/uaccess.h>
 #include <linux/version.h>
-#include <linux/types.h>
-#include <linux/kdev_t.h>
-#include <linux/device.h>
-#include <linux/cdev.h>
-#include <linux/interrupt.h>
+#include <linux/kernel.h>
+
+#include <linux/types.h>	// dev_t data type
+#include <linux/kdev_t.h>	// dev_t: Major() and Minor() functions
+#include <linux/fs.h>		// chrdev regirstration: alloc_chardev_region()
+#include <linux/device.h>	// udev support: class_create() and device_create()
+#include <linux/cdev.h>		// VFS registration: cdev_init() and cdev_add()
+#include <linux/uaccess.h>	// copy_to_user() and read_from_user()
+
+#include <linux/gpio.h>		// gpio kernel library
+#include <linux/interrupt.h>	// interrupt functions
 #include <linux/time.h>
+
 
 #define GPIO_HALLA		174     	//
 #define GPIO_HALLB		175			//
@@ -26,6 +26,7 @@
 #define GPIO_OUT		173			//
 #define DEBOUNCE_DELAY 	50
 #define HALL_MAX		500		//The length of sail actuator!
+
 static dev_t first; // Global variable for the first device number
 static struct cdev c_dev; //, c_dev2; // Global variable for the character device structure
 static struct class *cl; // Global variable for the device class
@@ -186,8 +187,7 @@ static ssize_t hall_read(struct file* F, char *buf, size_t count, loff_t *f_pos)
 /*
  * .write
  */
-static ssize_t hall_write(struct file* F, const char *buf, size_t count,
-		loff_t *f_pos) {
+static ssize_t hall_write(struct file* F, const char *buf, size_t count, loff_t *f_pos) {
 	printk(KERN_INFO "hall: Executing WRITE.\n");
 
 	switch (buf[0]) {
@@ -221,13 +221,18 @@ static int hall_close(struct inode *inode, struct file *file) {
 }
 
 static struct file_operations FileOps =
-		{ .owner = THIS_MODULE, .open = hall_open, .read = hall_read, .write =
-				hall_write, .release = hall_close, };
+{
+		.owner 		= THIS_MODULE,
+		.open 		= hall_open,
+		.read 		= hall_read,
+		.write 		= hall_write,
+		.release 	= hall_close
+};
 
 /*
  * Module init function.
  */
-static int __init init_hall(void)
+static int __init hall_init(void)
 {
 	struct timeval tv;
 
@@ -358,11 +363,12 @@ static int __init init_hall(void)
 	{
 		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_b_irq );
 	}
-
+	return 0;
+}
 	/*
 	 * Module exit function
 	 */
-	void __exit cleanup_hall(void)
+static void __exit hall_cleanup(void)
 	{
 		cdev_del( &c_dev );
 		device_destroy( cl, first );
@@ -377,8 +383,8 @@ static int __init init_hall(void)
 		gpio_free(GPIO_HALLB);
 	}
 
-	module_init(init_hall);
-	module_exit(cleanup_hall);
+	module_init(hall_init);
+	module_exit(hall_cleanup);
 
 	MODULE_AUTHOR("Bjorn Smith");
 	MODULE_LICENSE("GPL");
