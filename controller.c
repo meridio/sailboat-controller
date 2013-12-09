@@ -47,10 +47,9 @@
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
 
-#define SIMULATION	1		// Use 1 for simulation mode, 0 otherwise
-#define SIM_SOG		4		// [meters/seconds] boat speed over ground during simulation
+#define SIM_SOG		8		// [meters/seconds] boat speed over ground during simulation
 #define SIM_ROT		12		// [degrees/seconds] rate of turn
-#define SIM_ACT_INC	100		// actuator interval
+#define SIM_ACT_INC	100		// [millimiters/seconds] sail actuator increment per second
 
 #include "map_geometry.h"		// custom functions to handle geometry transformations on the map
 
@@ -61,7 +60,7 @@ float Latitude=0, Longitude=0, COG=0, SOG=0, Wind_Speed=0, Wind_Angle=0;
 float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
-int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0;
+int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
 int   logEntry=0, fa_debug=0, debug=0;
 char  logfile1[50],logfile2[50],logfile3[50];
 
@@ -145,7 +144,7 @@ int main(int argc, char ** argv) {
 				sail_controller();			// Execute the default sail controller
 				//sail_hc_controller();			// Execute the sail hillclimbing algorithm
 
-				if(SIMULATION) simulate_sailing();
+				if(Simulation) simulate_sailing();
 
 				// reaching the waypoint
 				if  ( (cabs(X_T - X) < RADIUSACCEPTED) && (Navigation_System==1) )
@@ -212,6 +211,8 @@ void initfiles() {
 	system("[ ! -f /tmp/sailboat/Guidance_Heading ] 	&& echo 0 > /tmp/sailboat/Guidance_Heading");
 	system("[ ! -f /tmp/sailboat/Rudder_Feedback ] 		&& echo 0 > /tmp/sailboat/Rudder_Feedback");
 	system("[ ! -f /tmp/sailboat/Sail_Feedback ] 		&& echo 0 > /tmp/sailboat/Sail_Feedback");
+	system("[ ! -f /tmp/sailboat/Simulation ] 		&& echo 0 > /tmp/sailboat/Simulation");
+	system("[ ! -f /tmp/sailboat/Simulation_Wind ] 		&& echo 0 > /tmp/sailboat/Simulation_Wind");
 
 	system("[ ! -f /tmp/sailboat/override_Guidance_Heading ] && echo -1 > /tmp/sailboat/override_Guidance_Heading");
 }
@@ -248,6 +249,9 @@ void check_navigation_system() {
 		file = fopen("/tmp/sailboat/Manual_Control_Sail", "r");
 		if (file != NULL) { fscanf(file, "%d", &Manual_Control_Sail); fclose(file);}
 	}
+
+	file = fopen("/tmp/sailboat/Simulation", "r");
+	if (file != NULL) { fscanf(file, "%d", &Simulation); fclose(file); }
 }
 
 
@@ -786,44 +790,50 @@ void sail_hc_controller() {
 
 void simulate_sailing() {
 	
-	// change boat heading
-	double delta_Heading = (SIM_ROT/SEC)*(-(float)Rudder_Desired_Angle/30)*SIM_SOG;
+	// update boat heading
+	double delta_Heading = (SIM_ROT/SEC)*(-(double)Rudder_Desired_Angle/30)*SIM_SOG;
 	Heading = Heading + delta_Heading;
 
 
-	// change boat position
-	double displacement = (float)SIM_SOG/SEC;
+	// update boat position
+	double displacement = ((double)SIM_SOG)/SEC;
 	double SimLon= ( (Longitude*CONVLON) + displacement*sinf(Heading*PI/180) )/CONVLON;
 	double SimLat= ( (Latitude*CONVLAT)  + displacement*cosf(Heading*PI/180) )/CONVLAT;
 	Latitude=(float)SimLat;
 	Longitude=(float)SimLon;
 
 
-	// change sail actuator position
+	// update sail actuator position
 	int increment=SIM_ACT_INC/SEC;
 	if (Sail_Feedback > Sail_Desired_Position) Sail_Feedback-=increment; 
 	else Sail_Feedback+=increment; 
+
+
+	// update rudder position (for the GUI only)
+	increment=16/SEC;	// 16 degrees/sec
+	if (Rudder_Feedback > Rudder_Desired_Angle) Rudder_Feedback-=increment; 
+	else Rudder_Feedback+=increment; 
 
 
 	// change wind conditions
 	// not implemented
 
 	
+	// debug
 	printf("FA_DEBUG:[%d]\n",fa_debug);
 
 
 	// Write new values to file
 	file = fopen("/tmp/u200/Heading", "w");
 	if (file != NULL) { fprintf(file, "%f", Heading); fclose(file); }
-	
 	file = fopen("/tmp/u200/Latitude", "w");
-	if (file != NULL) { fprintf(file, "%f", Latitude); fclose(file); }
-
+	if (file != NULL) { fprintf(file, "%.8f", Latitude); fclose(file); }
 	file = fopen("/tmp/u200/Longitude", "w");
-	if (file != NULL) { fprintf(file, "%f", Longitude); fclose(file); }
-
+	if (file != NULL) { fprintf(file, "%.8f", Longitude); fclose(file); }
 	file = fopen("/tmp/sailboat/Sail_Feedback", "w");
 	if (file != NULL) { fprintf(file, "%d", Sail_Feedback); fclose(file); }
+	file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
+	if (file != NULL) { fprintf(file, "%d", Rudder_Feedback); fclose(file); }
 
 }
 
