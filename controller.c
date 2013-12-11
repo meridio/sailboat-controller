@@ -603,65 +603,54 @@ void performManeuver()
 			switch(jibe_status)
 			{
 				case 1: //begin Jibe: get on course
-				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					jibe_pass_fcn();
+					break;
 				case 2: //tighten sail (hold course)
-				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
-				actIn = 1;
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					actIn = 1;
+					jibe_pass_fcn();
+					break;
 				case 3: //perform jibe (hold sail tight)
-				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
-				sig3=sig2;
-				actIn = 1;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					actIn = 1;
+					jibe_pass_fcn();
+					break;
 				case 4: //release sail (hold course)
-				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
-				actIn = 0;
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					actIn = 0;
+					jibe_pass_fcn();
+					break;
 				case 5: //find new course
-				sig3=0;
-				jibe_pass_fcn();
-				break;
+					jibe_pass_fcn();
+					break;
 			}
 			break;
 		case 2: // Jibe right
 			switch(jibe_status)
 			{
 				case 1: //begin Jibe: get on course
-				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					jibe_pass_fcn();
+					break;
 				case 2: //tighten sail (hold course)
-				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
-				actIn = 1;
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					actIn = 1;
+					jibe_pass_fcn();
+					break;
 				case 3: //perform jibe (hold sail tight)
-				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
-				actIn = 1;
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					actIn = 1;
+					jibe_pass_fcn();
+					break;
 				case 4: //release sail (hold course)
-				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
-				actIn = 0;
-				sig3=sig2;
-				jibe_pass_fcn();
-				break;
+					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					actIn = 0;
+					jibe_pass_fcn();
+					break;
 				case 5: //find new course
-				sig3=0;
-				jibe_status = 1;
-				jibe_pass_fcn();
-				break;
+					jibe_pass_fcn();
+					break;
 			}
 			break;
 	} // end switch(sig2)
@@ -691,7 +680,7 @@ void 	jibe_pass_fcn() {
 		jibe_status++;
 		}
 	}
-	if (jibe_status==5)
+	if (jibe_status==5 && Sail_Feedback>300)
 	{
 	sig3=0;
 	jibe_status=1;
@@ -765,38 +754,47 @@ void rudder_pid_controller() {
  */
 void sail_controller() {
 
-	float C=0, L0=0;			// desired sheet length
-	float BWA=0, sail_angle=0;
+	float C, C_zero, C_feedback;			// desired sheet length
+	float BWA=0, theta_sail=0, theta_sail_feedback;
+	float _Complex X_h, X_w;
 
+	X_h = csin(Heading*PI/180) + I*(ccos(Heading*PI/180));
+	X_w = csin(Wind_Angle*PI/180) + I*(ccos(Wind_Angle*PI/180));
+	BWA = acos( cimag(X_h)*cimag(X_w) + creal(X_h)*creal(X_w) );
+	if(debug) printf("BWA: %f \n",BWA);
 
-	// The wA should be the angle of the wind compared to the boat.
-	// Hence wA is a function of Wind_Angle and Heading (both in degrees)
+	// Deriving the function for theta_sail:
+	// theta_sail(BWA) = a*BWA+b
+	// Having two points, theta_sail(theta_nogo)=0 and theta_sail(3/4*PI)=1.23
+	// a=1.23/(3/4*PI-theta_nogo) , b=-a*theta_nogo
+	// This is inserted below.
 
-	BWA = (Heading - Wind_Angle)*PI/180; 	// [rad] BwA: Boat wind Angle, clockwise from 'nose'.
-	BWA = atan2(sin(BWA),cos(BWA));		// puts out a value [-PI;PI]
-	
-	if ( BWA < 0 ) { BWA = -BWA; }		// puts BWA=[0;PI]
-		
-
-	if ( BWA < theta_nogo ) { sail_angle = 0; }
+	if ( BWA < theta_nogo ) { theta_sail = 0; }
 	else
 	{
-		if ( BWA < PI*3/4 ) { sail_angle = BWA-(3*PI/4); }
+		if ( BWA < PI*3/4 ) { theta_sail = 1.23/( 3/4*PI-theta_nogo )*BWA - 1.23/(3/4*PI-theta_nogo)*theta_nogo; }
 		else
 		{
-			if ( BWA < (PI*17/18) ) { sail_angle=1.23; }
-			else { sail_angle = 0; }
+			if ( BWA < (PI*17/18) ) { theta_sail=1.23; }
+			else { theta_sail = 0; }
 		}
 	}
 
-	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(sail_angle) + SCHeight*SCHeight);
-	L0 = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(0) + SCHeight*SCHeight);
+	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(theta_sail) + SCHeight*SCHeight);
+	C_zero = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(0) + SCHeight*SCHeight);
 	// Then C should be translated into the position of main sail actuator
 	// Assuming the actuator to be outside at 0 and in at 500:
-	Sail_Desired_Position = (C-L0)/3*1000; //-500/(strokelength*3)*C+500+500/(strokelength*3)*SCHeight;
-
+	Sail_Desired_Position = (C-C_zero)/3*1000; //-500/(strokelength*3)*C+500+500/(strokelength*3)*SCHeight;
 	if ( Sail_Desired_Position > 500 ) Sail_Desired_Position=500; 
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
+
+	// Calculating the propable sail angle dependent on Sail_Feedback
+	C_feedback = Sail_Feedback*3/1000+C_zero;
+	theta_sail_feedback = acos( (C_feedback*C_feedback - SCLength*SCLength - BoomLength*BoomLength - SCHeight*SCHeight)/(-2*SCLength*BoomLength) );
+
+
+
+
 
 	// If the boat tilts too much
 	if(abs(Roll)>ROLL_LIMIT) 
@@ -822,7 +820,7 @@ void sail_controller() {
 	else
 	{
 		// Normal sail tuning
-		if(roll_counter > 5*SEC) { move_sail(Sail_Desired_Position); }
+		if(roll_counter > 5*SEC  ) { move_sail(Sail_Desired_Position); } //&& abs(theta_sail-theta_sail_feedback)>10
 	}
 
 }
