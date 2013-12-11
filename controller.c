@@ -85,12 +85,14 @@ float integratorSum=0, Guidance_Heading=0, override_Guidance_Heading=-1;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0, a_x=0, b_x=0;
 float theta_pM=0, theta_pM_b=0, theta_d_out=0;
 int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
-int   roll_counter=0;
+int   roll_counter = 0;
+int   jibe_status = 1, actIn;
 void guidance();
 void findAngle();
 void chooseManeuver();
 void performManeuver();
 void rudder_pid_controller();
+void jibe_pass_fcn();
 
 
 // sail hillclimbing algorithm
@@ -581,7 +583,7 @@ int sign(float val){
 void performManeuver()
 {
 	// float v_b1, v_b2, v_d1_b1, v_d1_b2;
-	float _Complex Xdl, Xdr, X_h, X_pM;
+	float _Complex Xdl, Xdr;
 	fa_debug=7353;
 	// I claim, we don't need this any more! theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
 
@@ -593,43 +595,112 @@ void performManeuver()
 	// DOWNzone limit direction ***** These variables are already defined in the findAngle-function. ***
         Xdl = -sin(theta_down)*2.8284 - I*cos(theta_down)*2.8284;
         Xdr = sin(theta_down)*2.8284 - I*cos(theta_down)*2.8284;
-
-	//Defining the headings during the maneuver.
+	
+	//Jibe direction -> jibe status -> defines the headings during the maneuver.
 	switch(sig2)
 	{
-		case 1:
-			theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
-			break;        
-		case 2:
-			theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+		case 1: // Jibe left
+			switch(jibe_status)
+			{
+				case 1: //begin Jibe: get on course
+				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 2: //tighten sail (hold course)
+				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+				actIn = 1;
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 3: //perform jibe (hold sail tight)
+				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+				sig3=sig2;
+				actIn = 1;
+				jibe_pass_fcn();
+				break;
+				case 4: //release sail (hold course)
+				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+				actIn = 0;
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 5: //find new course
+				sig3=0;
+				jibe_pass_fcn();
+				break;
+			}
 			break;
-		case 3:
-			theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+		case 2: // Jibe right
+			switch(jibe_status)
+			{
+				case 1: //begin Jibe: get on course
+				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 2: //tighten sail (hold course)
+				theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+				actIn = 1;
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 3: //perform jibe (hold sail tight)
+				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+				actIn = 1;
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 4: //release sail (hold course)
+				theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+				actIn = 0;
+				sig3=sig2;
+				jibe_pass_fcn();
+				break;
+				case 5: //find new course
+				sig3=0;
+				jibe_status = 1;
+				jibe_pass_fcn();
+				break;
+			}
 			break;
-		case 4:
-			theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
-			break;
-	}
+	} // end switch(sig2)
+	if (debug) printf("jibe status: %d \n",jibe_status);
+}
+
+/*	JIBE PASS FUNCTION
+ *	increase the value of 'jibe_status' when needed and define sig3.
+ */
+void 	jibe_pass_fcn() {
+	float _Complex X_h, X_pM;
 
 	// defining direction unit vectors
 	X_h = -sin(theta_b) + I*cos(theta_b);
 	X_pM = -sin(theta_pM_b) + I*cos(theta_pM_b);
 
 	if (debug) printf("Sail_Feedback: %d\n",Sail_Feedback);
-	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && sig2<3) // && Sail_Feedback>490) // Here 'Sail_Feedback=500' means that the actuator is as short as possible, hence the sail is tight.
-	{
-		// When the heading approaches the desired heading and the sail is tight, the jibe is performed.
-                if (sig2==1) { sig3=3; } // Jibe left; from Xdr to Xdl
-                else { sig3=4; }	// Jibe right; from Xdl to Xdr
+
+	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) ) // Here 'Sail_Feedback=0' means that the actuator is as short as possible, hence the sail is tight.
+	{	// When the heading approaches the desired heading and the sail is tight, the jibe is performed.
+		if ( actIn==0 )
+		{
+		jibe_status++;
+		}
+		if ( actIn && Sail_Feedback<10 )
+		{
+		jibe_status++;
+		}
 	}
-        else 
+	if (jibe_status==5)
 	{
-		if( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && sig2>2 )
-		{ sig3 = 0; }
-		else {sig3 = sig2;}
+	sig3=0;
+	jibe_status=1;
+	}
+	else
+	{
+	sig3=sig2;
 	}
 }
-
 
 /*
  *	RUDDER PID CONTROLLER:
@@ -694,7 +765,7 @@ void rudder_pid_controller() {
  */
 void sail_controller() {
 
-	float C=0;			// desired sheet length
+	float C=0, L0=0;			// desired sheet length
 	float BWA=0, sail_angle=0;
 
 
@@ -719,10 +790,10 @@ void sail_controller() {
 	}
 
 	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(sail_angle) + SCHeight*SCHeight);
-
+	L0 = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(0) + SCHeight*SCHeight);
 	// Then C should be translated into the position of main sail actuator
 	// Assuming the actuator to be outside at 0 and in at 500:
-	Sail_Desired_Position = -500/(strokelength*3)*C+500+500/(strokelength*3)*SCHeight;
+	Sail_Desired_Position = (C-L0)/3*1000; //-500/(strokelength*3)*C+500+500/(strokelength*3)*SCHeight;
 
 	if ( Sail_Desired_Position > 500 ) Sail_Desired_Position=500; 
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
@@ -731,7 +802,7 @@ void sail_controller() {
 	if(abs(Roll)>ROLL_LIMIT) 
 	{ 
                 // Start Loosening the sail
-		move_sail(0);                
+		move_sail(500);                
 		roll_counter=0;
 		if (debug) printf("max roll reached. \n" );
 	} 
@@ -742,11 +813,11 @@ void sail_controller() {
 
 	if (debug) printf("sail_controller readout: SIG3 = %d \n",sig3);
 	// If it is time to jibe
-	if (roll_counter > 5*SEC && sig3 > 0) 
+	if (roll_counter > 5*SEC && actIn) 
 	{
 		// Start Tightening the sail
-		move_sail(500);
-		if (debug) printf("Preparing for jibe. \n" );
+		move_sail(0);
+		if (debug) printf("Act moving inwards. \n" );
 	}
 	else
 	{
@@ -1142,7 +1213,7 @@ void move_rudder(int angle) {
  */
 void move_sail(int position) {
 	file = fopen("/tmp/sailboat/Navigation_System_Sail", "w");
-	if (file != NULL) { fprintf(file, "%d", position); fclose(file); }
+	if (file != NULL) { fprintf(file, "%d", position); fclose(file); Sail_Desired_Position=position;}
 }
 
 /*
