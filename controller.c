@@ -61,7 +61,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0;
+int   logEntry=0, fa_debug=0, debug=1;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
@@ -429,7 +429,7 @@ void guidance()
 
 void findAngle() 
 {
-	bool inrange;
+//	bool inrange;
 	float theta_LOS, theta_l, theta_r, theta_dl, theta_dr;
 	float _Complex Xl, Xr, Xdl, Xdr;
 
@@ -469,22 +469,10 @@ void findAngle()
 	if (debug) printf("a_x: %f \n",a_x);
 	b_x = TACKINGRANGE / (2 * sin(theta_LOS));
 
-	// stop signal
-	if (cabs(X_T - X) < RADIUSACCEPTED) { inrange = true; }
-	else { inrange = false; }
 
 	// compute the next theta_d, ie at time t+1
 	// (main algorithm)
-	if (inrange)			// waypoint reached.
-	{                         
-                theta_d1_b = theta_d_b;//PI*3/2;        // Heading downwind.
-		sig1 = 0;
-		if (debug) printf(">> debug 1 \n");
-		fa_debug=1; // I appreciate these debugs.
-	}
-	else
-	{
-		// Here we introduce the downwind nogo zone, and reorganize the ordering to:
+		// Execution order:
 		// 1. Is the LOS in deadzone?
 		// 2. Is the LOS in downzone?
 		// 3. the LOS is outside the zones, go straight.
@@ -523,14 +511,14 @@ void findAngle()
 
 				if (theta_d_b >= atan2(cimag(Xdl),creal(Xdl))-PI/36  && theta_d_b <= atan2(cimag(Xdl),creal(Xdl))+PI/36 )
 				{
-					if (creal(X_b) < a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xdr),creal(Xdr)); if (debug) printf(">> debug 13 \n"); fa_debug=13; sig1=1;}     
+					if (creal(X_b) > a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xdr),creal(Xdr)); if (debug) printf(">> debug 13 \n"); fa_debug=13; sig1=1;}     
 					else { theta_d1_b = theta_d_b; if (debug) printf(">> debug 14 \n"); fa_debug=14; sig1=0;}
 				} 
 				else
 				{
 					if (  (theta_d_b >= (atan2(cimag(Xdr),creal(Xdr))-(PI/36)))  &&  (theta_d_b <= (atan2(cimag(Xdr),creal(Xdr))+(PI/36))) )
 					{
-						if (creal(X_b) > a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xdl),creal(Xdl)); if (debug) printf(">> debug 15 \n"); fa_debug=15; sig1=1;}
+						if (creal(X_b) < a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xdl),creal(Xdl)); if (debug) printf(">> debug 15 \n"); fa_debug=15; sig1=1;}
 						else { theta_d1_b = theta_d_b; if (debug) printf(">> debug 16 \n"); fa_debug=16; sig1=0;}
 					}
 					else
@@ -550,7 +538,6 @@ void findAngle()
 				fa_debug=2;
 			}
 		}
-	}
 }        
 
 void chooseManeuver() 
@@ -629,7 +616,7 @@ void performManeuver()
 	X_pM = -sin(theta_pM_b) + I*cos(theta_pM_b);
 
 	if (debug) printf("Sail_Feedback: %d\n",Sail_Feedback);
-	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && sig2<3 && Sail_Feedback>490) // Here 'Sail_Feedback=500' means that the actuator is as short as possible, hence the sail is tight.
+	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && sig2<3) // && Sail_Feedback>490) // Here 'Sail_Feedback=500' means that the actuator is as short as possible, hence the sail is tight.
 	{
 		// When the heading approaches the desired heading and the sail is tight, the jibe is performed.
                 if (sig2==1) { sig3=3; } // Jibe left; from Xdr to Xdl
