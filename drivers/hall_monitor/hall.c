@@ -25,7 +25,7 @@
 #define GPIO_IN			172			//Green wire
 #define GPIO_OUT		173			//Yellow wire
 #define DEBOUNCE_DELAY 	1
-#define HALL_MAX		578		//The length of sail actuator!
+#define HALL_MAX		870		//The length of sail actuator!
 
 static dev_t first; // Global variable for the first device number
 static struct cdev c_dev; //, c_dev2; // Global variable for the character device structure
@@ -547,8 +547,12 @@ static void __exit hall_cleanup(void)
 
 		free_irq(hall_a_irq, NULL);
 		free_irq(hall_b_irq, NULL);
+		free_irq(hall_in_irq, NULL);
+		free_irq(hall_out_irq, NULL);
 		gpio_free(GPIO_HALLA);
 		gpio_free(GPIO_HALLB);
+		gpio_free(GPIO_IN);
+		gpio_free(GPIO_OUT);
 	}
 
 	module_init(hall_init);

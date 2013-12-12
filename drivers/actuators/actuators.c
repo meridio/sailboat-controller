@@ -65,6 +65,10 @@ void move_sail_right(int duty_loc);
 int main() {
 	initFiles();
 	init_io();
+	//find zero position of sail actuator.
+	move_sail_right(90); //
+		sleep_ms(20000);	//force move
+
 	for (;;) {
 		read_desired_rudder_angle_values();
 		read_desired_sail_length_values();
