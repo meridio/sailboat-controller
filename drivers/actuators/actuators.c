@@ -78,11 +78,10 @@ int main() {
 
 		//read from sail actual lenght
 		/*File READ*/
-		fprintf(stdout, "reading actual lenght\n"); //add path to lenght
-		//file = fopen("/sys/class/hwmon/hwmon0/device/in3_input", "r"); 
-		//fscanf(file, "%d", &actual_length);
-		actual_length = 250;
-		//fclose(file);
+		fprintf(stdout, "reading actual lenght\n");
+		file = fopen("/dev/hall", "r");
+		fscanf(file, "%d", &actual_length);
+		fclose(file);
 
 		//do convertion adc -> angle
 		actual_angle = (FEEDBACK_CENTER - adc_value) * CONVERTION_VALUE; //maybe the other way around?
@@ -92,9 +91,15 @@ int main() {
 		//write to disk
 		if (write_delay > 10) {
 			write_delay = 0;
+			//write rudder
 			file = fopen("/tmp/sailboat/Rudder_Feedback", "w");
 			fprintf(file, "%d", actual_angle);
 			fclose(file);
+			//write sail
+			file = fopen("/tmp/sailboat/Sail_Feedback", "w");
+			fprintf(file, "%d", actual_length);
+			fclose(file);
+
 		} else
 			write_delay++;
 		int delta_angle = actual_angle - desired_angle;
@@ -191,6 +196,7 @@ void initFiles() {
 	system("mkdir -p /tmp/actuators");
 	system("echo 0 > /tmp/sailboat/Rudder_Feedback");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Rudder");
+	system("echo 0 > /tmp/sailboat/Sail_Feedback");
 	system("echo 0 > /tmp/sailboat/Navigation_System_Sail");
 }
 
@@ -212,18 +218,23 @@ void init_io() {
 	/*                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
 	 * 
 	 */
+
+	/* Change the pinmux to GPIO instead of default SPI */
 	system("devmem2 0x480021c6 h 0x10c"); //GPIO 170
 	system("devmem2 0x480021c8 h 0x10c"); //GPIO 171
-	//system("devmem2 0x480021ca h 0x10c"); //GPIO 172
-	//system("devmem2 0x480021cc h 0x10c"); //GPIO 173
-	//system("devmem2 0x480021ce h 0x10c"); //GPIO 174
+	system("devmem2 0x480021ca h 0x10c"); //GPIO 172
+	system("devmem2 0x480021cc h 0x10c"); //GPIO 173
+	system("devmem2 0x480021ce h 0x10c"); //GPIO 174
+	system("devmem2 0x480021d0 h 0x10c"); //GPIO 175
 	system("echo 170 > /sys/class/gpio/export");
 	system("echo 171 > /sys/class/gpio/export");
 	system("echo out > /sys/class/gpio/gpio170/direction");
 	system("echo out > /sys/class/gpio/gpio171/direction");
 	
 	//install pwm module
-	system("insmod pwm.ko");	
+	system("insmod pwm.ko");
+	//install hall module
+	system("insmod hall.ko");
 
 	system("echo 0 > /sys/class/gpio/gpio170/value");	//Disable LOW, thereby working actuator.
 	system("echo 0 > /sys/class/gpio/gpio171/value");	//Enable HIGH (inversed signal), meaning motor driver is on.

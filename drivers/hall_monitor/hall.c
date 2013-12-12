@@ -20,12 +20,12 @@
 #include <linux/time.h>
 
 
-#define GPIO_HALLA		174     	//
-#define GPIO_HALLB		175			//
-#define GPIO_IN			172			//
-#define GPIO_OUT		173			//
-#define DEBOUNCE_DELAY 	50
-#define HALL_MAX		500		//The length of sail actuator!
+#define GPIO_HALLA		174     	//white or purple
+#define GPIO_HALLB		175			//white or purple
+#define GPIO_IN			172			//Green wire
+#define GPIO_OUT		173			//Yellow wire
+#define DEBOUNCE_DELAY 	1
+#define HALL_MAX		578		//The length of sail actuator!
 
 static dev_t first; // Global variable for the first device number
 static struct cdev c_dev; //, c_dev2; // Global variable for the character device structure
@@ -34,8 +34,10 @@ static struct class *cl; // Global variable for the device class
 static int init_result;
 static int hall_a_irq = 0;
 static int hall_b_irq = 0;
-static int hall_length = 0; // irq count
-static int hall_state = 0;
+static int hall_in_irq = 0;
+static int hall_out_irq = 0;
+static unsigned int hall_length = 0; // irq count
+//static int hall_state = 0;
 
 unsigned int last_interrupt_time = 0;
 static uint64_t epochMilli;
@@ -55,7 +57,14 @@ static uint64_t epochMilli;
  * S2    | falling| high   |
  * S3    | low    | falling|
  *
+ * Due too only ONE irq per GPIO (dafaq?!?!?) a new worse tactic is needed...
+ * now we will only use rising edge trigger, and at the same time test the otherpin.
+ * this WILL affect precision, and I will advice for doing periodic endstop tests.
  *
+ * direction one:
+ * A_trig + B_low -> B_trig + A_high ..... forward
+ * diretion two:
+ * A_trig + B_high -> B_trig + A_low ..... backwards!
  */
 
 /*
@@ -77,7 +86,108 @@ unsigned int millis(void) {
 /*
  * The interrupt handler functions
  */
+
 static irqreturn_t halla_rising_handler(int irq, void *dev_id) {
+	unsigned int interrupt_time = millis();
+
+	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
+		//printk(KERN_NOTICE "button: Ignored Interrupt! \n");
+		return IRQ_HANDLED;
+	}
+	last_interrupt_time = interrupt_time;
+//	printk(KERN_INFO "halla: I got rising interrupt.\n");
+
+	 if(gpio_get_value(GPIO_HALLB)==0)
+	 {
+		 if(hall_length==HALL_MAX)
+		 {
+
+		 }
+		 else
+		 {
+			 hall_length++;
+		 }
+	 }
+	 else
+	 {
+		 if(hall_length==0)
+		 {
+
+		 }
+		 else
+		 {
+			 hall_length--;
+		 }
+	 }
+
+	return IRQ_HANDLED;
+}
+static irqreturn_t hallb_rising_handler(int irq, void *dev_id) {
+	unsigned int interrupt_time = millis();
+
+	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
+		//printk(KERN_NOTICE "button: Ignored Interrupt! \n");
+		return IRQ_HANDLED;
+	}
+	last_interrupt_time = interrupt_time;
+//	printk(KERN_INFO "hallb: I got rising interrupt.\n");
+
+	 if(gpio_get_value(GPIO_HALLA)==0)
+	 {
+		 if(hall_length==0)
+		 {
+
+		 }
+		 else
+		 {
+			 hall_length--;
+		 }
+	 }
+	 else
+	 {
+		 if(hall_length==HALL_MAX)
+		 {
+
+		 }
+		 else
+		 {
+			 hall_length++;
+		 }
+		 hall_length++;
+	 }
+
+	return IRQ_HANDLED;
+}
+static irqreturn_t hallin_rising_handler(int irq, void *dev_id) {
+	unsigned int interrupt_time = millis();
+
+	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
+		//printk(KERN_NOTICE "button: Ignored Interrupt! \n");
+		return IRQ_HANDLED;
+	}
+	last_interrupt_time = interrupt_time;
+	printk(KERN_INFO "hallin:  IN-END-STOP hit.\n");
+
+	hall_length = 0;
+
+	return IRQ_HANDLED;
+}
+static irqreturn_t hallout_rising_handler(int irq, void *dev_id) {
+	unsigned int interrupt_time = millis();
+
+	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
+		//printk(KERN_NOTICE "button: Ignored Interrupt! \n");
+		return IRQ_HANDLED;
+	}
+	last_interrupt_time = interrupt_time;
+	printk(KERN_INFO "hallout: OUT-END-STOP hit.\n");
+
+	hall_length = HALL_MAX;
+
+	return IRQ_HANDLED;
+}
+
+/*static irqreturn_t halla_rising_handler(int irq, void *dev_id) {
 	unsigned int interrupt_time = millis();
 
 	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
@@ -95,9 +205,9 @@ static irqreturn_t halla_rising_handler(int irq, void *dev_id) {
 	hall_state = 0;
 
 	return IRQ_HANDLED;
-}
+}*/
 
-static irqreturn_t halla_falling_handler(int irq, void *dev_id) {
+/*static irqreturn_t halla_falling_handler(int irq, void *dev_id) {
 	unsigned int interrupt_time = millis();
 
 	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
@@ -116,8 +226,8 @@ static irqreturn_t halla_falling_handler(int irq, void *dev_id) {
 	hall_state = 2;
 
 	return IRQ_HANDLED;
-}
-static irqreturn_t hallb_rising_handler(int irq, void *dev_id) {
+}*/
+/*static irqreturn_t hallb_rising_handler(int irq, void *dev_id) {
 	unsigned int interrupt_time = millis();
 
 	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
@@ -136,9 +246,9 @@ static irqreturn_t hallb_rising_handler(int irq, void *dev_id) {
 	hall_state = 1;
 
 	return IRQ_HANDLED;
-}
+}*/
 
-static irqreturn_t hallb_falling_handler(int irq, void *dev_id) {
+/*static irqreturn_t hallb_falling_handler(int irq, void *dev_id) {
 	unsigned int interrupt_time = millis();
 
 	if (interrupt_time - last_interrupt_time < DEBOUNCE_DELAY) {
@@ -157,29 +267,27 @@ static irqreturn_t hallb_falling_handler(int irq, void *dev_id) {
 	hall_state = 3;
 
 	return IRQ_HANDLED;
-}
+}*/
 
 /*
  * .read
  */
 static ssize_t hall_read(struct file* F, char *buf, size_t count, loff_t *f_pos) {
-	printk(KERN_INFO "hall length: %d\n", hall_length);
+//	printk(KERN_INFO "hall length: %u\n", hall_length);
 
 	char buffer[10];
 
-	int temp = hall_length;
+	unsigned int temp = hall_length;
 
-	sprintf(buffer, "%1d", temp);
-
-	count = sizeof(buffer);
+	count = sprintf(buffer, "%u", temp);
 
 	if (copy_to_user(buf, buffer, count)) {
 		return -EFAULT;
 	}
 
 	if (*f_pos == 0) {
-		*f_pos += 1;
-		return 1;
+		*f_pos += count;
+		return count;
 	} else {
 		return 0;
 	}
@@ -188,7 +296,7 @@ static ssize_t hall_read(struct file* F, char *buf, size_t count, loff_t *f_pos)
  * .write
  */
 static ssize_t hall_write(struct file* F, const char *buf, size_t count, loff_t *f_pos) {
-	printk(KERN_INFO "hall: Executing WRITE.\n");
+//	printk(KERN_INFO "hall: Executing WRITE.\n");
 
 	switch (buf[0]) {
 	case '0':
@@ -293,6 +401,22 @@ static int __init hall_init(void)
 		unregister_chrdev_region( first, 2 );
 		return -1;
 	}
+	if(gpio_request(GPIO_IN, "hallin"))
+	{
+		printk( KERN_ALERT "gpio request failed\n" );
+		device_destroy( cl, first );
+		class_destroy( cl );
+		unregister_chrdev_region( first, 2 );
+		return -1;
+	}
+	if(gpio_request(GPIO_OUT, "hallout"))
+	{
+		printk( KERN_ALERT "gpio request failed\n" );
+		device_destroy( cl, first );
+		class_destroy( cl );
+		unregister_chrdev_region( first, 2 );
+		return -1;
+	}
 
 	if((hall_a_irq = gpio_to_irq(GPIO_HALLA)) < 0)
 	{
@@ -310,6 +434,22 @@ static int __init hall_init(void)
 		unregister_chrdev_region( first, 2 );
 		return -1;
 	}
+	if((hall_in_irq = gpio_to_irq(GPIO_IN)) < 0)
+		{
+			printk( KERN_ALERT "gpio to irq failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
+	if((hall_out_irq = gpio_to_irq(GPIO_OUT)) < 0)
+		{
+			printk( KERN_ALERT "gpio to irq failed\n" );
+			device_destroy( cl, first );
+			class_destroy( cl );
+			unregister_chrdev_region( first, 2 );
+			return -1;
+		}
 
 	if(request_irq(hall_a_irq, halla_rising_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
 	{
@@ -324,7 +464,7 @@ static int __init hall_init(void)
 	{
 		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_a_irq );
 	}
-	if(request_irq(hall_a_irq, halla_falling_handler, IRQF_TRIGGER_FALLING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
+/*	if(request_irq(hall_a_irq, halla_falling_handler, IRQF_TRIGGER_FALLING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
 	{
 		printk( KERN_ALERT "hall device interrupt handle failed\n" );
 		device_destroy( cl, first );
@@ -336,7 +476,7 @@ static int __init hall_init(void)
 	else
 	{
 		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_a_irq );
-	}
+	}*/
 	if(request_irq(hall_b_irq, hallb_rising_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
 	{
 		printk( KERN_ALERT "hall device interrupt handle failed\n" );
@@ -350,7 +490,7 @@ static int __init hall_init(void)
 	{
 		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_b_irq );
 	}
-	if(request_irq(hall_b_irq, hallb_falling_handler, IRQF_TRIGGER_FALLING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
+/*	if(request_irq(hall_b_irq, hallb_falling_handler, IRQF_TRIGGER_FALLING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
 	{
 		printk( KERN_ALERT "hall device interrupt handle failed\n" );
 		device_destroy( cl, first );
@@ -362,7 +502,35 @@ static int __init hall_init(void)
 	else
 	{
 		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_b_irq );
+	}*/
+	if(request_irq(hall_in_irq, hallin_rising_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
+	{
+		printk( KERN_ALERT "hall device interrupt handle failed\n" );
+		device_destroy( cl, first );
+		class_destroy( cl );
+		unregister_chrdev_region( first, 1 );
+
+		return -1;
 	}
+	else
+	{
+		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_in_irq );
+	}
+	if(request_irq(hall_out_irq, hallout_rising_handler, IRQF_TRIGGER_RISING | IRQF_DISABLED, "gpiomod#hall", NULL ) == -1)
+	{
+		printk( KERN_ALERT "hall device interrupt handle failed\n" );
+		device_destroy( cl, first );
+		class_destroy( cl );
+		unregister_chrdev_region( first, 1 );
+
+		return -1;
+	}
+	else
+	{
+		printk( KERN_ALERT "hall: Device irq number is %d\n", hall_out_irq );
+	}
+
+
 	return 0;
 }
 	/*
