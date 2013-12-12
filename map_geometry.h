@@ -35,6 +35,17 @@ Point new_point(double x, double y)
 }
 
 /*
+ *	Substract two points
+ */
+Point subp(Point a, Point b)
+{
+	Point r;
+	r.x = a.x - b.x;
+	r.y = a.y - b.y;
+	return r;
+}
+
+/*
  *	Rotate point coordinates
  */
 Point rotate_point(Point p, float angle)
