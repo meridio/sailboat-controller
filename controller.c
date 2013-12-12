@@ -61,7 +61,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0;
+int   logEntry=0, fa_debug=0, debug=1;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
@@ -85,7 +85,7 @@ float integratorSum=0, Guidance_Heading=0, override_Guidance_Heading=-1;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0, a_x=0, b_x=0;
 float theta_pM=0, theta_pM_b=0, theta_d_out=0;
 int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
-int   roll_counter = 0;
+int   roll_counter = 0, tune_counter = 0;
 int   jibe_status = 1, actIn;
 void guidance();
 void findAngle();
@@ -233,7 +233,7 @@ void initfiles() {
  *
  *	if Manual_Control is ON, read the following values:
  *		- [Manual_Control_Rudder] : user value for desired RUDDER angle [-30.0 to 30.0]
- *		- [Manual_Control_Sail]   : user value for desired SAIL position [0 to 500] 
+ *		- [Manual_Control_Sail]   : user value for desired SAIL position [0 to 578] 
  */
 void check_navigation_system() {
 
@@ -345,7 +345,7 @@ void guidance()
 	float x, y, theta_wind;
 	float _Complex Geo_X, Geo_X0, Geo_X_T;
 
-	if (debug) printf("theta_d: %4.1f deg. \n",theta_d*180/PI);
+	// if (debug) printf("theta_d: %4.1f deg. \n",theta_d*180/PI);
 
 	x=Longitude;
 	y=Latitude;
@@ -379,13 +379,13 @@ void guidance()
 	X_T_b = ccos(atan2(cimag(X_T),creal(X_T))+theta_wind)*cabs(X_T) + 1*I*(csin(atan2(cimag(X_T),creal(X_T))+theta_wind)*cabs(X_T));
 	X_b = ccos(atan2(cimag(X),creal(X))+theta_wind)*cabs(X) + 1*I*(csin(atan2(cimag(X),creal(X))+theta_wind)*cabs(X));
 	theta_b = theta_wind - theta + PI/2;
-	if (debug) printf("init SIG:[%d]\n",sig);
+	// if (debug) printf("init SIG:[%d]\n",sig);
 
 	if (sig == 0)  
 	{
 		findAngle();
-		if (debug) printf("findAngle SIG1:[%d]\n",sig1);
-                if (sig1 == 1) { chooseManeuver(); if (debug) printf("chooseManeuver SIG2:[%d]\n",sig2); }
+		// if (debug) printf("findAngle SIG1:[%d]\n",sig1);
+                if (sig1 == 1) { chooseManeuver(); }// if (debug) printf("chooseManeuver SIG2:[%d]\n",sig2); }
 		else { sig2 = sig1; }
 	}
 	else
@@ -395,12 +395,12 @@ void guidance()
                 sig2 = sig1;
 	}
 
-	//if (debug) printf("theta_d1: %4.1f deg. \n",theta_d1);
+	// if (debug) printf("theta_d1: %4.1f deg. \n",theta_d1);
 
-        if (sig2 > 0) { performManeuver(); if (debug) printf("performManeuver SIG3:[%d]\n",sig3); }
+        if (sig2 > 0) { performManeuver(); } // if (debug) printf("performManeuver SIG3:[%d]\n",sig3); 
 	else { sig3 = sig2; }
 
-	if (debug) printf("SIG1: [%d] - SIG2: [%d] - SIG3: [%d] \n",sig1, sig2, sig3);
+	// if (debug) printf("SIG1: [%d] - SIG2: [%d] - SIG3: [%d] \n",sig1, sig2, sig3);
 
 	// Updating the history angle, telling the guidance heading from last iteration
 	theta_d_b = theta_d1_b;
@@ -468,7 +468,7 @@ void findAngle()
 	//if (debug) printf("angle(Xdr): %f \n",atan2(cimag(Xdr),creal(Xdr)));
 	//if (debug) printf("angle(Xdl): %f \n",atan2(cimag(Xdl),creal(Xdl)));
 
-	if (debug) printf("a_x: %f \n",a_x);
+	// if (debug) printf("a_x: %f \n",a_x);
 	b_x = TACKINGRANGE / (2 * sin(theta_LOS));
 
 
@@ -480,26 +480,26 @@ void findAngle()
 		// 3. the LOS is outside the zones, go straight.
 		if ( (atan2(cimag(Xr),creal(Xr))-PI/9)<=theta_LOS  &&  theta_LOS<=(atan2(cimag(Xl),creal(Xl))+PI/9) )
 		{
-			if (debug) printf("theta_d_b: %f \n",theta_d_b);
-			if (debug) printf("atan2 Xl: %f \n",atan2(cimag(Xl),creal(Xl)));
-			if (debug) printf("atan2 Xr: %f \n",atan2(cimag(Xr),creal(Xr)));
+			// if (debug) printf("theta_d_b: %f \n",theta_d_b);
+			// if (debug) printf("atan2 Xl: %f \n",atan2(cimag(Xl),creal(Xl)));
+			// if (debug) printf("atan2 Xr: %f \n",atan2(cimag(Xr),creal(Xr)));
 
 			if (theta_d_b >= atan2(cimag(Xl),creal(Xl))-PI/36  && theta_d_b <= atan2(cimag(Xl),creal(Xl))+PI/36 )
 			{
-				if (creal(X_b) < a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); if (debug) printf(">> debug 3 \n"); fa_debug=3; sig1=1;}     
-				else { theta_d1_b = theta_d_b; if (debug) printf(">> debug 4 \n"); fa_debug=4; sig1=0;}
+				if (creal(X_b) < a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xr),creal(Xr)); } //if (debug) printf(">> debug 3 \n"); fa_debug=3; sig1=1;}     
+				else { theta_d1_b = theta_d_b;} // if (debug) printf(">> debug 4 \n"); fa_debug=4; sig1=0;}
 			} 
 			else
 			{
 				if (  (theta_d_b >= (atan2(cimag(Xr),creal(Xr))-(PI/36)))  &&  (theta_d_b <= (atan2(cimag(Xr),creal(Xr))+(PI/36))) )
 				{
-					if (creal(X_b) > a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); if (debug) printf(">> debug 5 \n"); fa_debug=5; sig1=1;}
-					else { theta_d1_b = theta_d_b; if (debug) printf(">> debug 6 \n"); fa_debug=6; sig1=0;}
+					if (creal(X_b) > a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); } //if (debug) printf(">> debug 5 \n"); fa_debug=5; sig1=1;}
+					else { theta_d1_b = theta_d_b; } //if (debug) printf(">> debug 6 \n"); fa_debug=6; sig1=0;}
 				}
 				else
 				{
-					if(cabs(theta_l) < cabs(theta_r)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); if (debug) printf(">> debug 7 \n"); fa_debug=7; sig1=1;}
-					else { theta_d1_b = atan2(cimag(Xr),creal(Xr)); if (debug) printf(">> debug 8 \n"); fa_debug=8; sig1=1;}
+					if(cabs(theta_l) < cabs(theta_r)) { theta_d1_b = atan2(cimag(Xl),creal(Xl)); } //if (debug) printf(">> debug 7 \n"); fa_debug=7; sig1=1;}
+					else { theta_d1_b = atan2(cimag(Xr),creal(Xr));} // if (debug) printf(">> debug 8 \n"); fa_debug=8; sig1=1;}
 				}
 			}
 		}
@@ -507,27 +507,27 @@ void findAngle()
 		{
 			if ( atan2(cimag(Xdr),creal(Xdr)) >= theta_LOS  &&  theta_LOS >= atan2(cimag(Xdl),creal(Xdl)) )
 			{
-                                if (debug) printf("theta_d_b: %f \n",theta_d_b);
-				if (debug) printf("atan2 Xdl: %f \n",atan2(cimag(Xdl),creal(Xdl)));
-				if (debug) printf("atan2 Xdr: %f \n",atan2(cimag(Xdr),creal(Xdr)));
+                                // if (debug) printf("theta_d_b: %f \n",theta_d_b);
+				// if (debug) printf("atan2 Xdl: %f \n",atan2(cimag(Xdl),creal(Xdl)));
+				// if (debug) printf("atan2 Xdr: %f \n",atan2(cimag(Xdr),creal(Xdr)));
 
 				if (theta_d_b >= atan2(cimag(Xdl),creal(Xdl))-PI/36  && theta_d_b <= atan2(cimag(Xdl),creal(Xdl))+PI/36 )
 				{
-					if (creal(X_b) > a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xdr),creal(Xdr)); if (debug) printf(">> debug 13 \n"); fa_debug=13; sig1=1;}     
-					else { theta_d1_b = theta_d_b; if (debug) printf(">> debug 14 \n"); fa_debug=14; sig1=0;}
+					if (creal(X_b) > a_x*cimag(X_b)-b_x) { theta_d1_b = atan2(cimag(Xdr),creal(Xdr)); }//if (debug) printf(">> debug 13 \n"); fa_debug=13; sig1=1;}     
+					else { theta_d1_b = theta_d_b; }//if (debug) printf(">> debug 14 \n"); fa_debug=14; sig1=0;}
 				} 
 				else
 				{
 					if (  (theta_d_b >= (atan2(cimag(Xdr),creal(Xdr))-(PI/36)))  &&  (theta_d_b <= (atan2(cimag(Xdr),creal(Xdr))+(PI/36))) )
 					{
-						if (creal(X_b) < a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xdl),creal(Xdl)); if (debug) printf(">> debug 15 \n"); fa_debug=15; sig1=1;}
-						else { theta_d1_b = theta_d_b; if (debug) printf(">> debug 16 \n"); fa_debug=16; sig1=0;}
+						if (creal(X_b) < a_x*cimag(X_b)+b_x) { theta_d1_b = atan2(cimag(Xdl),creal(Xdl)); }//if (debug) printf(">> debug 15 \n"); fa_debug=15; sig1=1;}
+						else { theta_d1_b = theta_d_b; }//if (debug) printf(">> debug 16 \n"); fa_debug=16; sig1=0;}
 					}
 					else
 					{
-						if(cabs(theta_dl) < cabs(theta_dr)) { theta_d1_b = atan2(cimag(Xdl),creal(Xdl)); if (debug) printf(">> debug 17 \n"); fa_debug=17; sig1=1;}
-						else { theta_d1_b = atan2(cimag(Xdr),creal(Xdr)); if (debug) printf(">> debug 18 \n"); fa_debug=18; sig1=1;}
-						if (debug) printf("---- Downwind theta_d1_b: %f \n",theta_d1_b);
+						if(cabs(theta_dl) < cabs(theta_dr)) { theta_d1_b = atan2(cimag(Xdl),creal(Xdl)); }//if (debug) printf(">> debug 17 \n"); fa_debug=17; sig1=1;}
+						else { theta_d1_b = atan2(cimag(Xdr),creal(Xdr)); }//if (debug) printf(">> debug 18 \n"); fa_debug=18; sig1=1;}
+						// if (debug) printf("---- Downwind theta_d1_b: %f \n",theta_d1_b);
 					}
 				}
 			}
@@ -536,7 +536,7 @@ void findAngle()
 				// if theta_LOS is outside of the deadzone
 				theta_d1_b = theta_LOS;
 				sig1 = 1;
-				if (debug) printf(">> debug 2 \n");
+				// if (debug) printf(">> debug 2 \n");
 				fa_debug=2;
 			}
 		}
@@ -587,10 +587,11 @@ void performManeuver()
 	fa_debug=7353;
 	// I claim, we don't need this any more! theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
 
-	if (debug) printf("theta_b: %f\n",theta_b);
-	if (debug) printf("theta_d1_b: %f\n",theta_d1_b);
-	if (sig2==1) if (debug) printf("Jibe left ... ");
-	if (sig2==2) if (debug) printf("Jibe right ... ");
+	// if (debug) printf("theta_b: %f\n",theta_b);
+	// if (debug) printf("theta_d1_b: %f\n",theta_d1_b);
+	if (sig2==1) // if (debug) printf("Jibe left ... ");
+	if (sig2==2) // if (debug) printf("Jibe right ... ");
+	// if (debug) printf("jibe_status: %d\n",jibe_status);
 
 	// DOWNzone limit direction ***** These variables are already defined in the findAngle-function. ***
         Xdl = -sin(theta_down)*2.8284 - I*cos(theta_down)*2.8284;
@@ -654,7 +655,11 @@ void performManeuver()
 			}
 			break;
 	} // end switch(sig2)
+	if (debug) printf("theta_down: %f\n", theta_down);
+	if (debug) printf("Xdl: %f + i%f\n", creal(Xdl), cimag(Xdl));
+	if (debug) printf("Xdr: %f + i%f\n", creal(Xdr), cimag(Xdr));
 	if (debug) printf("jibe status: %d \n",jibe_status);
+	if (debug) printf("theta_pM: %f \n",theta_pM);
 }
 
 /*	JIBE PASS FUNCTION
@@ -669,26 +674,26 @@ void 	jibe_pass_fcn() {
 
 	if (debug) printf("Sail_Feedback: %d\n",Sail_Feedback);
 
-	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) ) // Here 'Sail_Feedback=0' means that the actuator is as short as possible, hence the sail is tight.
+	if ( cos(angle_lim) < (creal(X_h)*creal(X_pM) + cimag(X_h)*cimag(X_pM)) && jibe_status<5) // Here 'Sail_Feedback=0' means that the actuator is as short as possible, hence the sail is tight.
 	{	// When the heading approaches the desired heading and the sail is tight, the jibe is performed.
 		if ( actIn==0 )
 		{
-		jibe_status++;
+			jibe_status++;
 		}
 		if ( actIn && Sail_Feedback<10 )
 		{
-		jibe_status++;
+			jibe_status++;
 		}
 	}
 	if (jibe_status==5 && Sail_Feedback>300)
 	{
-	sig3=0;
-	jibe_status=1;
+		sig3=0;
+		jibe_status=1;
 	}
 	else
 	{
-	sig3=sig2;
-	}
+		sig3=sig2;
+	}	
 }
 
 /*
@@ -709,7 +714,7 @@ void rudder_pid_controller() {
 	dHeading = atan2(sin(dHeading),cos(dHeading));
 	dHeading = dHeading*180/PI;        
 
-	if (debug) printf("dHeading: %f\n",dHeading);
+	// if (debug) printf("dHeading: %f\n",dHeading);
 
 	//if (debug) fprintf(stdout,"targetHeafing: %f, deltaHeading: %f\n",targetHeading, dHeading);
 	//if (abs(dHeading) > dHEADING_MAX && abs(Rate) > RATEOFTURN_MAX) // Limit control statement
@@ -754,14 +759,14 @@ void rudder_pid_controller() {
  */
 void sail_controller() {
 
-	float C, C_zero, C_feedback;			// desired sheet length
-	float BWA=0, theta_sail=0, theta_sail_feedback;
+	float C, C_zero; // C_feedback;			// kinds of sheet length
+	float BWA=0, theta_sail=0; //theta_sail_feedback;
 	float _Complex X_h, X_w;
 
 	X_h = csin(Heading*PI/180) + I*(ccos(Heading*PI/180));
 	X_w = csin(Wind_Angle*PI/180) + I*(ccos(Wind_Angle*PI/180));
 	BWA = acos( cimag(X_h)*cimag(X_w) + creal(X_h)*creal(X_w) );
-	if(debug) printf("BWA: %f \n",BWA);
+	// if(debug) printf("BWA: %f \n",BWA);
 
 	// Deriving the function for theta_sail:
 	// theta_sail(BWA) = a*BWA+b
@@ -783,14 +788,14 @@ void sail_controller() {
 	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(theta_sail) + SCHeight*SCHeight);
 	C_zero = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(0) + SCHeight*SCHeight);
 	// Then C should be translated into the position of main sail actuator
-	// Assuming the actuator to be outside at 0 and in at 500:
+	// Assuming the actuator to be outside at 578 and in at 0:
 	Sail_Desired_Position = (C-C_zero)/3*1000; //-500/(strokelength*3)*C+500+500/(strokelength*3)*SCHeight;
-	if ( Sail_Desired_Position > 500 ) Sail_Desired_Position=500; 
+	if ( Sail_Desired_Position > 578 ) Sail_Desired_Position=578; 
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
 
 	// Calculating the propable sail angle dependent on Sail_Feedback
-	C_feedback = Sail_Feedback*3/1000+C_zero;
-	theta_sail_feedback = acos( (C_feedback*C_feedback - SCLength*SCLength - BoomLength*BoomLength - SCHeight*SCHeight)/(-2*SCLength*BoomLength) );
+//	C_feedback = Sail_Feedback*3/1000+C_zero;
+//	theta_sail_feedback = acos( (C_feedback*C_feedback - SCLength*SCLength - BoomLength*BoomLength - SCHeight*SCHeight)/(-2*SCLength*BoomLength) );
 
 
 
@@ -800,27 +805,35 @@ void sail_controller() {
 	if(abs(Roll)>ROLL_LIMIT) 
 	{ 
                 // Start Loosening the sail
-		move_sail(500);                
+		move_sail(578);                
 		roll_counter=0;
-		if (debug) printf("max roll reached. \n" );
+		// if (debug) printf("max roll reached. \n" );
 	} 
 	else
 	{
 		if(roll_counter<10*SEC) { roll_counter++; }
 	}
 
-	if (debug) printf("sail_controller readout: SIG3 = %d \n",sig3);
+	// if (debug) printf("sail_controller readout: SIG3 = %d \n",sig3);
 	// If it is time to jibe
 	if (roll_counter > 5*SEC && actIn) 
 	{
 		// Start Tightening the sail
 		move_sail(0);
-		if (debug) printf("Act moving inwards. \n" );
+		// if (debug) printf("Act moving inwards. \n" );
 	}
 	else
 	{
-		// Normal sail tuning
-		if(roll_counter > 5*SEC  ) { move_sail(Sail_Desired_Position); } //&& abs(theta_sail-theta_sail_feedback)>10
+		// sail tuning according to wind
+		if(roll_counter > 5*SEC && (abs(Sail_Desired_Position-Sail_Feedback)>50 || tune_counter>5*SEC) )
+		{
+			move_sail(Sail_Desired_Position);
+			tune_counter=0;
+		} //&& abs(theta_sail-theta_sail_feedback)>10
+		else
+		{
+		tune_counter++;
+		}
 	}
 
 }
@@ -854,7 +867,7 @@ void sail_hc_controller() {
 		if (sail_hc_MEAN_V < sail_hc_OLD_V) { sail_hc_direction*=-1; }
 
 		// START MOVING THE ACTUATOR
-		if (sail_hc_direction==1) sail_hc_val=500; else sail_hc_val=0;
+		if (sail_hc_direction==1) sail_hc_val=578; else sail_hc_val=0;
 		move_sail(sail_hc_val);
 
 		sail_hc_OLD_V = sail_hc_MEAN_V;
