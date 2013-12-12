@@ -594,8 +594,8 @@ void performManeuver()
 	// if (debug) printf("jibe_status: %d\n",jibe_status);
 
 	// DOWNzone limit direction ***** These variables are already defined in the findAngle-function. ***
-        Xdl = -sin(theta_down)*2.8284 - I*cos(theta_down)*2.8284;
-        Xdr = sin(theta_down)*2.8284 - I*cos(theta_down)*2.8284;
+        Xdl = -sinf(creal(theta_down))*2.8284 - I*cosf(creal(theta_down))*2.8284;
+        Xdr = sinf(creal(theta_down))*2.8284 - I*cosf(creal(theta_down))*2.8284;
 	
 	//Jibe direction -> jibe status -> defines the headings during the maneuver.
 	switch(sig2)
@@ -604,21 +604,21 @@ void performManeuver()
 			switch(jibe_status)
 			{
 				case 1: //begin Jibe: get on course
-					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					theta_pM_b = atan2f(cimag(Xdl),creal(Xdl));
 					jibe_pass_fcn();
 					break;
 				case 2: //tighten sail (hold course)
-					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					theta_pM_b = atan2f(cimag(Xdl),creal(Xdl));
 					actIn = 1;
 					jibe_pass_fcn();
 					break;
 				case 3: //perform jibe (hold sail tight)
-					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					theta_pM_b = atan2f(cimag(Xdr),creal(Xdr));
 					actIn = 1;
 					jibe_pass_fcn();
 					break;
 				case 4: //release sail (hold course)
-					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					theta_pM_b = atan2f(cimag(Xdr),creal(Xdr));
 					actIn = 0;
 					jibe_pass_fcn();
 					break;
@@ -631,21 +631,21 @@ void performManeuver()
 			switch(jibe_status)
 			{
 				case 1: //begin Jibe: get on course
-					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					theta_pM_b = atan2f(cimag(Xdr),creal(Xdr));
 					jibe_pass_fcn();
 					break;
 				case 2: //tighten sail (hold course)
-					theta_pM_b = atan2(cimag(Xdr),creal(Xdr));
+					theta_pM_b = atan2f(cimag(Xdr),creal(Xdr));
 					actIn = 1;
 					jibe_pass_fcn();
 					break;
 				case 3: //perform jibe (hold sail tight)
-					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					theta_pM_b = atan2f(cimag(Xdl),creal(Xdl));
 					actIn = 1;
 					jibe_pass_fcn();
 					break;
 				case 4: //release sail (hold course)
-					theta_pM_b = atan2(cimag(Xdl),creal(Xdl));
+					theta_pM_b = atan2f(cimag(Xdl),creal(Xdl));
 					actIn = 0;
 					jibe_pass_fcn();
 					break;
@@ -669,8 +669,8 @@ void 	jibe_pass_fcn() {
 	float _Complex X_h, X_pM;
 
 	// defining direction unit vectors
-	X_h = -sin(theta_b) + I*cos(theta_b);
-	X_pM = -sin(theta_pM_b) + I*cos(theta_pM_b);
+	X_h = -sinf(theta_b) + I*cosf(theta_b);
+	X_pM = -sinf(theta_pM_b) + I*cosf(theta_pM_b);
 
 	if (debug) printf("Sail_Feedback: %d\n",Sail_Feedback);
 
