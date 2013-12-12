@@ -26,9 +26,9 @@
 #define JIBE_ANGLE	40		// [degrees] Rudder angle while jibing
 #define theta_nogo	55*PI/180	// [radians] Angle of nogo zone, compared to wind direction
 #define theta_down	30*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
-#define v_min		10000		// [meters/seconds] Min velocity for tacking
-#define angle_lim 	10*PI/180
-#define ROLL_LIMIT 	5		// Threshold for an automatic emergency sail release
+#define v_min		0		// [meters/seconds] Min velocity for tacking
+#define angle_lim 	10*PI/180	// [degrees] threshold for jibing. The heading has to be 10 degrees close to desired Heading.
+#define ROLL_LIMIT 	5		// [degrees] Threshold for an automatic emergency sail release
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
 #define RATEOFTURN_MAX	36		// [degrees/second]
@@ -46,10 +46,11 @@
 
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
+#define ACT_MAX		870		// [ticks] the max number of actuator ticks
 
 #define SIM_SOG		8		// [meters/seconds] boat speed over ground during simulation
 #define SIM_ROT		5		// [degrees/seconds] rate of turn
-#define SIM_ACT_INC	100		// [millimiters/seconds] sail actuator increment per second
+#define SIM_ACT_INC	200		// [millimiters/seconds] sail actuator increment per second
 
 #include "map_geometry.h"		// custom functions to handle geometry transformations on the map
 
@@ -85,7 +86,7 @@ float integratorSum=0, Guidance_Heading=0, override_Guidance_Heading=-1;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0, a_x=0, b_x=0;
 float theta_pM=0, theta_pM_b=0, theta_d_out=0;
 int   sig = 0, sig1 = 0, sig2 = 0, sig3 = 0; // coordinating the guidance
-int   roll_counter = 0;
+int   roll_counter = 0, tune_counter = 0;
 int   jibe_status = 1, actIn;
 void guidance();
 void findAngle();
@@ -481,8 +482,8 @@ void findAngle()
 		if ( (atan2(cimag(Xr),creal(Xr))-PI/9)<=theta_LOS  &&  theta_LOS<=(atan2(cimag(Xl),creal(Xl))+PI/9) )
 		{
 			if (debug) printf("theta_d_b: %f \n",theta_d_b);
-			if (debug) printf("atan2 Xl: %f \n",atan2(cimag(Xl),creal(Xl)));
-			if (debug) printf("atan2 Xr: %f \n",atan2(cimag(Xr),creal(Xr)));
+			if (debug) printf("atan2(Xl): %f \n",atan2(cimag(Xl),creal(Xl)));
+			if (debug) printf("atan2(Xr): %f \n",atan2(cimag(Xr),creal(Xr)));
 
 			if (theta_d_b >= atan2(cimag(Xl),creal(Xl))-PI/36  && theta_d_b <= atan2(cimag(Xl),creal(Xl))+PI/36 )
 			{
@@ -768,14 +769,14 @@ void rudder_pid_controller() {
  */
 void sail_controller() {
 
-	float C, C_zero, C_feedback;			// desired sheet length
-	float BWA=0, theta_sail=0, theta_sail_feedback;
+	float C=0, C_zero=0; // C_feedback;			// kinds of sheet length
+	float BWA=0, theta_sail=0; //theta_sail_feedback;
 	float _Complex X_h, X_w;
 
 	X_h = csin(Heading*PI/180) + I*(ccos(Heading*PI/180));
 	X_w = csin(Wind_Angle*PI/180) + I*(ccos(Wind_Angle*PI/180));
 	BWA = acos( cimag(X_h)*cimag(X_w) + creal(X_h)*creal(X_w) );
-	if(debug) printf("BWA: %f \n",BWA);
+	// if(debug) printf("BWA: %f \n",BWA);
 
 	// Deriving the function for theta_sail:
 	// theta_sail(BWA) = a*BWA+b
@@ -796,41 +797,46 @@ void sail_controller() {
 
 	C = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(theta_sail) + SCHeight*SCHeight);
 	C_zero = sqrt( SCLength*SCLength + BoomLength*BoomLength -2*SCLength*BoomLength*cos(0) + SCHeight*SCHeight);
-	// Then C should be translated into the position of main sail actuator
-	// Assuming the actuator to be outside at 0 and in at 500:
-	Sail_Desired_Position = (C-C_zero)/3*1000; //-500/(strokelength*3)*C+500+500/(strokelength*3)*SCHeight;
-	if ( Sail_Desired_Position > 500 ) Sail_Desired_Position=500; 
+
+	// Assuming the actuator to be outside at ACT_MAX and in at 0:
+	//(C-C_zero)=0 -> sail tight when C=C_zero . ACT_MAX/500 is the ratio between ticks and stroke. 1000[mm]/3 is a unit change + 
+	Sail_Desired_Position = (C-C_zero)/3*1000*ACT_MAX/500; 
+	if ( Sail_Desired_Position > ACT_MAX ) Sail_Desired_Position=ACT_MAX; 
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
 
-	// Calculating the propable sail angle dependent on Sail_Feedback
-	C_feedback = Sail_Feedback*3/1000+C_zero;
-	theta_sail_feedback = acos( (C_feedback*C_feedback - SCLength*SCLength - BoomLength*BoomLength - SCHeight*SCHeight)/(-2*SCLength*BoomLength) );
-
 	// If the boat tilts too much
-	if(abs(Roll)>ROLL_LIMIT) 
+	if(fabs(Roll)>ROLL_LIMIT) 
 	{ 
                 // Start Loosening the sail
-		move_sail(500);                
+		move_sail(ACT_MAX);                
 		roll_counter=0;
-		if (debug) printf("max roll reached. \n" );
+		// if (debug) printf("max roll reached. \n" );
 	} 
 	else
 	{
 		if(roll_counter<10*SEC) { roll_counter++; }
 	}
 
-	if (debug) printf("sail_controller readout: SIG3 = %d \n",sig3);
+	// if (debug) printf("sail_controller readout: SIG3 = %d \n",sig3);
 	// If it is time to jibe
-	if (roll_counter > 5*SEC && actIn) 
+	if (actIn) 
 	{
 		// Start Tightening the sail
 		move_sail(0);
-		if (debug) printf("Act moving inwards. \n" );
+		// if (debug) printf("Act moving inwards. \n" );
 	}
 	else
 	{
-		// Normal sail tuning
-		if(roll_counter > 5*SEC  ) { move_sail(Sail_Desired_Position); } //&& abs(theta_sail-theta_sail_feedback)>10
+		// sail tuning according to wind
+		if(roll_counter > 5*SEC && (fabs(Sail_Desired_Position-Sail_Feedback)>50 || tune_counter>5*SEC) )
+		{
+			move_sail(Sail_Desired_Position);
+			tune_counter=0;
+		} //&& fabs(theta_sail-theta_sail_feedback)>10
+		else
+		{
+		tune_counter++;
+		}
 	}
 
 }
