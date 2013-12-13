@@ -99,7 +99,9 @@ void rudder_pid_controller();
 void jibe_pass_fcn();
 
 
-// sail hillclimbing algorithm
+// sail algorithm
+float act_history=0;		// debet credit!...?
+	// hill climbing
 int sail_hc_periods=0, sail_hc_direction=1, sail_hc_val=0;
 float sail_hc_ACC_V=0, sail_hc_OLD_V=0, sail_hc_MEAN_V=0;
 void sail_controller();
@@ -836,7 +838,7 @@ void sail_controller() {
 
 	float C=0, C_zero=0; 		// sheet lengths
 	float BWA=0, theta_sail=0; 	// angle of wind according to heading, desired sail angle
-	float act_history=0;		// debet credit!...?
+
 	float _Complex X_h, X_w;
 
 	X_h = csin(Heading*PI/180) + I*(ccos(Heading*PI/180));
@@ -865,7 +867,7 @@ void sail_controller() {
 
 	// Assuming the actuator to be outside at ACT_MAX and in at 0:
 	//(C-C_zero)=0 -> sail tight when C=C_zero . ACT_MAX/500 is the ratio between ticks and stroke. 1000[mm]/3 is a unit change + 
-	Sail_Desired_Position = (C-C_zero)/3*1000*ACT_MAX/500; 
+	Sail_Desired_Position = round( (C-C_zero)/3*1000*ACT_MAX/500 ); 
 	if ( Sail_Desired_Position > ACT_MAX ) Sail_Desired_Position=ACT_MAX; 
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
 
@@ -907,10 +909,14 @@ void sail_controller() {
 	
 	// Duty cycle observer
 
-	if ( abs(Sail_Feedback-Sail_Desired_Position)>0 ) { act_history = act_history+1/SEC; }
+	if ( abs(Sail_Feedback-Sail_Desired_Position)>SIM_ACT_INC ) 
+	{ 
+		act_history = act_history+1/SEC; 
+		if (debug4) printf("act_history: %f \n",act_history);
+	}
 	if ( act_history>0 ) { act_history = act_history-MAX_DUTY_CYCLE/SEC; }
-	if (debug4) printf("act_history: %.1f \n",act_history);
-	if (debug4) printf("abs: %.1f \n",abs(Sail_Feedback-Sail_Desired_Position));
+	if (debug4) printf("act_history: %.5f \n",act_history);
+	if (debug4) printf("abs: %d \n",abs(Sail_Feedback-Sail_Desired_Position));
 }
 
 
