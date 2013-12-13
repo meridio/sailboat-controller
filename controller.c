@@ -23,11 +23,10 @@
 #define CONVLON		64078		// meters per degree
 #define CONVLAT		110742		// meters per degree
 
-#define JIBE_ANGLE	40		// [degrees] Rudder angle while jibing
 #define theta_nogo	55*PI/180	// [radians] Angle of nogo zone, compared to wind direction
 #define theta_down	30*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
-#define v_min		1000		// [meters/seconds] Min velocity for tacking
-#define angle_lim 	5*PI/180	// [degrees] threshold for jibing. The heading has to be 10 degrees close to desired Heading.
+#define v_min		0		// [meters/seconds] Min velocity for tacking
+#define angle_lim 	5*PI/180	// [degrees] threshold for jibing. The heading has to be 5 degrees close to desired Heading.
 #define ROLL_LIMIT 	5		// [degrees] Threshold for an automatic emergency sail release
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
@@ -63,7 +62,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=1;
+int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=0;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
