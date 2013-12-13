@@ -46,7 +46,8 @@
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
 #define ACT_MAX		870		// [ticks] the max number of actuator ticks
-#define SAIL_LIMIT	50		// [ticks] max tolerated difference between desired and current actuator position
+#define SAIL_LIMIT	150		// [ticks] max tolerated difference between desired and current actuator position
+#define MAX_DUTY_CYCLE 	0.3     	// [%] Datasheet max duty cycle
 
 #define SIM_SOG		8		// [meters/seconds] boat speed over ground during simulation
 #define SIM_ROT		5		// [degrees/seconds] rate of turn
@@ -62,7 +63,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=0;
+int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=0, debug4=1;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
@@ -834,7 +835,8 @@ void rudder_pid_controller() {
 void sail_controller() {
 
 	float C=0, C_zero=0; 		// sheet lengths
-	float BWA=0, theta_sail=0; 	//theta_sail_feedback;
+	float BWA=0, theta_sail=0; 	// angle of wind according to heading, desired sail angle
+	float act_history=0;		// debet credit!...?
 	float _Complex X_h, X_w;
 
 	X_h = csin(Heading*PI/180) + I*(ccos(Heading*PI/180));
@@ -902,7 +904,13 @@ void sail_controller() {
 		}
 	}
 	if (debug2) printf("Sail_Feedback: %d \n",Sail_Feedback);
+	
+	// Duty cycle observer
 
+	if ( abs(Sail_Feedback-Sail_Desired_Position)>0 ) { act_history = act_history+1/SEC; }
+	if ( act_history>0 ) { act_history = act_history-MAX_DUTY_CYCLE/SEC; }
+	if (debug4) printf("act_history: %.1f \n",act_history);
+	if (debug4) printf("abs: %.1f \n",abs(Sail_Feedback-Sail_Desired_Position));
 }
 
 
