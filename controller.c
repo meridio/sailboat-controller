@@ -219,6 +219,7 @@ void initfiles() {
 	system("[ ! -f /tmp/sailboat/Sail_Feedback ] 		&& echo 0 > /tmp/sailboat/Sail_Feedback");
 	system("[ ! -f /tmp/sailboat/Simulation ] 		&& echo 0 > /tmp/sailboat/Simulation");
 	system("[ ! -f /tmp/sailboat/Simulation_Wind ] 		&& echo 0 > /tmp/sailboat/Simulation_Wind");
+	system("[ ! -f /tmp/sailboat/boundaries ] 		&& echo 0 > /tmp/sailboat/boundaries");
 
 	system("[ ! -f /tmp/sailboat/override_Guidance_Heading ] && echo -1 > /tmp/sailboat/override_Guidance_Heading");
 }
@@ -348,6 +349,7 @@ void guidance()
 	if (debug) printf("*********** Guidance **************** \n");
 	float x, y, theta_wind;
 	float _Complex Geo_X, Geo_X0, Geo_X_T;
+	char boundaries[200];
 
 	//if (debug) printf("theta_d: %4.1f [deg]\n",theta_d*180/PI);
 
@@ -453,6 +455,17 @@ void guidance()
 		fprintf(file, "%4.1f", Guidance_Heading);
 		fclose(file);
 	}
+
+	// if we are in SIMULATION MODE, write boundaries to file to be displayed in the GUI
+	if(Simulation) {
+		sprintf(boundaries, "%.6f;%.6f,%.6f;%.6f,%.6f;%.6f,%.6f;%.6f,",cimag(Geo_X1),creal(Geo_X1),cimag(Geo_X2),creal(Geo_X2),cimag(Geo_X3),creal(Geo_X3),cimag(Geo_X4),creal(Geo_X4));
+		file = fopen("/tmp/sailboat/boundaries", "w");
+		if (file != NULL) {
+			fprintf(file, "%s\n", boundaries);
+			fclose(file);
+		}
+	}
+
 }
 
 void findAngle() 
