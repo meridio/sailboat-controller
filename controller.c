@@ -220,6 +220,7 @@ void initfiles() {
 	system("[ ! -f /tmp/sailboat/Simulation ] 		&& echo 0 > /tmp/sailboat/Simulation");
 	system("[ ! -f /tmp/sailboat/Simulation_Wind ] 		&& echo 0 > /tmp/sailboat/Simulation_Wind");
 	system("[ ! -f /tmp/sailboat/boundaries ] 		&& echo 0 > /tmp/sailboat/boundaries");
+	system("[ ! -f /tmp/sailboat/act_history ] 		&& echo 0 > /tmp/sailboat/act_history");
 
 	system("[ ! -f /tmp/sailboat/override_Guidance_Heading ] && echo -1 > /tmp/sailboat/override_Guidance_Heading");
 }
@@ -903,6 +904,10 @@ void sail_controller() {
 	if ( act_history>0 ) { act_history = act_history-MAX_DUTY_CYCLE/SEC; }
 	if (debug4) printf("act_history: %.5f \n",act_history);
 	if (debug4) printf("abs: %d \n",abs(Sail_Feedback-Sail_Desired_Position));
+
+	// write act_history to file
+	file = fopen("/tmp/sailboat/act_history", "w");
+	if (file != NULL) { fprintf(file, "%.5f", act_history); fclose(file); }
 }
 
 
