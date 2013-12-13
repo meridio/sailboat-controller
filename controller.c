@@ -25,7 +25,7 @@
 
 #define theta_nogo	55*PI/180	// [radians] Angle of nogo zone, compared to wind direction
 #define theta_down	30*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
-#define v_min		0		// [meters/seconds] Min velocity for tacking
+#define v_min		0.5		// [meters/seconds] Min velocity for tacking
 #define angle_lim 	5*PI/180	// [degrees] threshold for jibing. The heading has to be 5 degrees close to desired Heading.
 #define ROLL_LIMIT 	15		// [degrees] Threshold for an automatic emergency sail release
 
@@ -38,16 +38,14 @@
 #define BoomLength	1.6 		// [meters] Length of the Boom
 #define SCLength	1.43 		// [meters] horizontal distance between sheet hole and mast
 #define SCHeight	0.6		// [meters] vertical distance between sheet hole and boom.
-#define theta_tack	30 		// [degrees]
-#define theta_reach	50 		// [degrees]
-#define theta_running	80 		// [degrees]
-#define strokelength	1		// [meters] actuator length
+#define strokelength	0.5		// [meters] actuator length
 
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
 #define ACT_MAX		870		// [ticks] the max number of actuator ticks
 #define SAIL_LIMIT	150		// [ticks] max tolerated difference between desired and current actuator position
 #define MAX_DUTY_CYCLE 	0.3     	// [%] Datasheet max duty cycle
+#define ACT_PRECISION	10		// [ticks] how close the actuator gets to the Sail_Desired_Position
 
 #define SIM_SOG		8		// [meters/seconds] boat speed over ground during simulation
 #define SIM_ROT		5		// [degrees/seconds] rate of turn
@@ -63,7 +61,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=0, debug4=1;
+int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=0, debug4=0;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
@@ -495,16 +493,8 @@ void findAngle()
 
 	// tacking boundaries
 	// Line: x = a_x*y +/- b_x
-	if (creal(X_T_b-X0) != 0)
-	{
-		a_x = creal(X_T_b-X0)/cimag(X_T_b-X0);
-	}
-	//******************************************************************
-	// else // it should work without this.
-	// {
-	// 	a_x=0;
-	// }
-	//******************************************************************
+	if (creal(X_T_b-X0) != 0) { a_x = creal(X_T_b-X0)/cimag(X_T_b-X0); }
+	else {a_x=0;}
 
 
 	//if (debug) printf("theta_LOS: %f \n",theta_LOS);
@@ -531,8 +521,8 @@ void findAngle()
 	X3 = a_x*cimag(X3)+b_x + I*cimag(X3);
 	if (debug3) printf("X3: %f + I*%f \n",creal(X3),cimag(X3));
 
-	X4 = 0 + I*( creal(X_T_b)*(-b_x+creal(X0))+cimag(X_T_b)*cimag(X0) )/( creal(X_T_b)*a_x+cimag(X_T_b) );
-	X4 = a_x*cimag(X1)+b_x + I*cimag(X4);
+	X4 = 0 + I*( creal(X_T_b)*(-b_x+creal(X0))+   cimag(X_T_b)*cimag(X0) )/( creal(X_T_b)*a_x+cimag(X_T_b) );
+	X4 = a_x*cimag(X4)+b_x + I*cimag(X4);
 	if (debug3) printf("X4: %f + I*%f \n",creal(X4),cimag(X4));
 
 
@@ -867,7 +857,7 @@ void sail_controller() {
 
 	// Assuming the actuator to be outside at ACT_MAX and in at 0:
 	//(C-C_zero)=0 -> sail tight when C=C_zero . ACT_MAX/500 is the ratio between ticks and stroke. 1000[mm]/3 is a unit change + 
-	Sail_Desired_Position = round( (C-C_zero)/3*1000*ACT_MAX/500 ); 
+	Sail_Desired_Position = round( (C-C_zero)/3*ACT_MAX/strokelength ); 
 	if ( Sail_Desired_Position > ACT_MAX ) Sail_Desired_Position=ACT_MAX; 
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
 
@@ -909,7 +899,7 @@ void sail_controller() {
 	
 	// Duty cycle observer
 
-	if ( abs(Sail_Feedback-Sail_Desired_Position)>SIM_ACT_INC ) { act_history += 1/SEC;}
+	if ( abs(Sail_Feedback-Sail_Desired_Position)>ACT_PRECISION ) { act_history += 1/SEC;}
 	if ( act_history>0 ) { act_history = act_history-MAX_DUTY_CYCLE/SEC; }
 	if (debug4) printf("act_history: %.5f \n",act_history);
 	if (debug4) printf("abs: %d \n",abs(Sail_Feedback-Sail_Desired_Position));
@@ -1367,7 +1357,7 @@ void write_log_file() {
 		file2 = fopen(logfile1, "w");
 		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,Navigation_System,Manual_Control,Guidance_Heading,Manual_Ctrl_Rudder,Rudder_Desired_Angle,Rudder_Feedback,Manual_Ctrl_Sail,Sail_Desired_Pos,Sail_Feedback,Rate,Heading,Pitch,Roll,Latitude,Longitude,COG,SOG,Wind_Speed,Wind_Angle,Point_Start_Lat,Point_Start_Lon,Point_End_Lat,Point_End_Lon\n"); fclose(file2); }
 		file2 = fopen(logfile2, "w");
-		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b,a_x,b_x,X_b,X_T_b,sail_hc_periods,sail_hc_direction,sail_hc_val,sail_hc_MEAN_V\n"); fclose(file2); }
+		if (file2 != NULL) { fprintf(file2, "MCU_timestamp,sig1,sig2,sig3,fa_debug,theta_d1,theta_d,theta_d1_b,theta_b,a_x,b_x,X_b,X_T_b,sail_hc_periods,sail_hc_direction,sail_hc_val,sail_hc_MEAN_V,act_history,jibe_status\n"); fclose(file2); }
 		
 		logEntry=1;
 	}
@@ -1410,7 +1400,7 @@ void write_log_file() {
 
 
 	// generate csv DEBUG line
-	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f_%fi,%f_%fi,%d,%d,%d,%.2f" \
+	sprintf(logline, "%u,%d,%d,%d,%d,%f,%f,%f,%f,%f,%f,%f_%fi,%f_%fi,%d,%d,%d,%.2f,%.2f,%d" \
 		, (unsigned)time(NULL) \
 		, sig1 \
 		, sig2 \
@@ -1428,6 +1418,8 @@ void write_log_file() {
 		, sail_hc_direction \
 		, sail_hc_val \
 		, sail_hc_MEAN_V \
+		, act_history \
+		, jibe_status \
 	);
 	// write to DEBUG file
 	file2 = fopen(logfile2, "a");
