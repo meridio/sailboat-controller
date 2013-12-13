@@ -27,7 +27,7 @@
 #define theta_nogo	55*PI/180	// [radians] Angle of nogo zone, compared to wind direction
 #define theta_down	30*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
 #define v_min		0		// [meters/seconds] Min velocity for tacking
-#define angle_lim 	10*PI/180	// [degrees] threshold for jibing. The heading has to be 10 degrees close to desired Heading.
+#define angle_lim 	5*PI/180	// [degrees] threshold for jibing. The heading has to be 10 degrees close to desired Heading.
 #define ROLL_LIMIT 	5		// [degrees] Threshold for an automatic emergency sail release
 
 #define INTEGRATOR_MAX	20		// [degrees], influence of the integrator
@@ -47,6 +47,7 @@
 #define SAIL_ACT_TIME  3		// [seconds] actuation time of the sail hillclimbing algoritm
 #define SAIL_OBS_TIME  20		// [seconds] observation time of the sail hillclimbing algoritm
 #define ACT_MAX		870		// [ticks] the max number of actuator ticks
+#define SAIL_LIMIT	50		// [ticks] max tolerated difference between desired and current actuator position
 
 #define SIM_SOG		8		// [meters/seconds] boat speed over ground during simulation
 #define SIM_ROT		5		// [degrees/seconds] rate of turn
@@ -62,7 +63,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0;
+int   logEntry=0, fa_debug=0, debug=0, debug2=0;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
@@ -416,11 +417,7 @@ void guidance()
 	else { theta_d_out = theta_d1; }
 	Guidance_Heading = (PI/2 - theta_d_out) * 180/PI; 
 
-	//if (debug) printf("Guidance_Heading: %4.1f rad \n",Guidance_Heading);
 	if (debug) printf("FA_DEBUG:[%d]\n",fa_debug);
-	//******************************************************************
-	//theta_d = theta_d1;                // Do we need this one?
-	//******************************************************************
 
 	// write guidance_heading to file to be displayed in GUI 
 	file = fopen("/tmp/sailboat/Guidance_Heading", "w");
@@ -541,13 +538,13 @@ void findAngle()
 				fa_debug=2;
 			}
 		}
-	if (debug) printf("theta_LOS = %f \n",theta_LOS);
-	if (debug) printf("X_T_b = %.1f + I*%.1f \n",creal(X_T_b),cimag(X_T_b));
-	if (debug) printf("X_b = %.1f + I*%.1f \n",creal(X_b),cimag(X_b));
-	if (debug) printf("Xl = %f + I*%f \n",creal(Xl),cimag(Xl));
-	if (debug) printf("Xr = %f + I*%f \n",creal(Xr),cimag(Xr));
-	if (debug) printf("Xdl = %f + I*%f \n",creal(Xdl),cimag(Xdl));
-	if (debug) printf("Xdr = %f + I*%f \n",creal(Xdr),cimag(Xdr));
+	//if (debug) printf("theta_LOS = %f \n",theta_LOS);
+	//if (debug) printf("X_T_b = %.1f + I*%.1f \n",creal(X_T_b),cimag(X_T_b));
+	//if (debug) printf("X_b = %.1f + I*%.1f \n",creal(X_b),cimag(X_b));
+	//if (debug) printf("Xl = %f + I*%f \n",creal(Xl),cimag(Xl));
+	//if (debug) printf("Xr = %f + I*%f \n",creal(Xr),cimag(Xr));
+	//if (debug) printf("Xdl = %f + I*%f \n",creal(Xdl),cimag(Xdl));
+	//if (debug) printf("Xdr = %f + I*%f \n",creal(Xdr),cimag(Xdr));
 }        
 
 void chooseManeuver() 
@@ -578,8 +575,8 @@ void chooseManeuver()
 			{ sig2=2; }	//right
 		}
 	}
-	if (debug) printf("X_d_b = %f + I*%f \n",creal(X_d_b),cimag(X_d_b));
-	if (debug) printf("X_d1_b = %f + I*%f \n",creal(X_d1_b),cimag(X_d1_b));
+	//if (debug) printf("X_d_b = %f + I*%f \n",creal(X_d_b),cimag(X_d_b));
+	//if (debug) printf("X_d1_b = %f + I*%f \n",creal(X_d1_b),cimag(X_d1_b));
 }
 
 int sign(float val){
@@ -597,8 +594,8 @@ void performManeuver()
 	fa_debug=7353;
 	// I claim, we don't need this any more! theta_b=atan2(sin(theta_b),cos(theta_b)); // avoiding singularity
 
-	if (debug) printf("theta_b: %f\n",theta_b);
-	if (debug) printf("theta_d1_b: %f\n",theta_d1_b);
+	//if (debug) printf("theta_b: %f\n",theta_b);
+	//if (debug) printf("theta_d1_b: %f\n",theta_d1_b);
 	if (sig2==1) if (debug) printf("Jibe left ... ");
 	if (sig2==2) if (debug) printf("Jibe right ... ");
 
@@ -664,10 +661,10 @@ void performManeuver()
 			}
 			break;
 	} // end switch(sig2)
-	if (debug) printf("theta_pM_b = %f \n",theta_pM_b);
+	//if (debug) printf("theta_pM_b = %f \n",theta_pM_b);
 	if (debug) printf("jibe status = %d \n",jibe_status);
-	if (debug) printf("Xdl = %f + I*%f \n",creal(Xdl),cimag(Xdl));
-	if (debug) printf("Xdr = %f + I*%f \n",creal(Xdr),cimag(Xdr));
+	//if (debug) printf("Xdl = %f + I*%f \n",creal(Xdl),cimag(Xdl));
+	//if (debug) printf("Xdr = %f + I*%f \n",creal(Xdr),cimag(Xdr));
 }
 
 /*	JIBE PASS FUNCTION
@@ -705,6 +702,9 @@ void 	jibe_pass_fcn() {
 	if (debug) printf("X_h = %f + I*%f \n",creal(X_h),cimag(X_h));
 	if (debug) printf("X_pM = %f + I*%f \n",creal(X_pM),cimag(X_pM));
 }
+
+
+
 
 /*
  *	RUDDER PID CONTROLLER:
@@ -760,6 +760,7 @@ void rudder_pid_controller() {
 }
 
 
+
 /*
  *	SAIL CONTROLLER (default)
  *
@@ -769,14 +770,13 @@ void rudder_pid_controller() {
  */
 void sail_controller() {
 
-	float C=0, C_zero=0; // C_feedback;			// kinds of sheet length
-	float BWA=0, theta_sail=0; //theta_sail_feedback;
+	float C=0, C_zero=0; 		// sheet lengths
+	float BWA=0, theta_sail=0; 	//theta_sail_feedback;
 	float _Complex X_h, X_w;
 
 	X_h = csin(Heading*PI/180) + I*(ccos(Heading*PI/180));
 	X_w = csin(Wind_Angle*PI/180) + I*(ccos(Wind_Angle*PI/180));
 	BWA = acos( cimag(X_h)*cimag(X_w) + creal(X_h)*creal(X_w) );
-	// if(debug) printf("BWA: %f \n",BWA);
 
 	// Deriving the function for theta_sail:
 	// theta_sail(BWA) = a*BWA+b
@@ -805,7 +805,7 @@ void sail_controller() {
 	if ( Sail_Desired_Position < 0 )   Sail_Desired_Position=0; 
 
 	// If the boat tilts too much
-	if(fabs(Roll)>ROLL_LIMIT) 
+	if(fabs(Roll*3.26)>ROLL_LIMIT) // we multiply by 3.26, to transform the input to degrees.
 	{ 
                 // Start Loosening the sail
 		move_sail(ACT_MAX);                
@@ -823,21 +823,22 @@ void sail_controller() {
 	{
 		// Start Tightening the sail
 		move_sail(0);
-		// if (debug) printf("Act moving inwards. \n" );
 	}
 	else
 	{
 		// sail tuning according to wind
-		if(roll_counter > 5*SEC && (fabs(Sail_Desired_Position-Sail_Feedback)>50 || tune_counter>5*SEC) )
+		if(roll_counter > 5*SEC && (fabs(Sail_Desired_Position-Sail_Feedback)>SAIL_LIMIT || tune_counter>10*SEC) )
 		{
 			move_sail(Sail_Desired_Position);
 			tune_counter=0;
-		} //&& fabs(theta_sail-theta_sail_feedback)>10
+			if (debug2) printf("- - - Sail tuning - - -\n");
+		}
 		else
 		{
 		tune_counter++;
 		}
 	}
+	if (debug2) printf("Sail_Feedback: %d \n",Sail_Feedback);
 
 }
 
@@ -899,7 +900,7 @@ void simulate_sailing() {
 	// update sail actuator position
 	int increment=SIM_ACT_INC/SEC;
 	if (Sail_Feedback > Sail_Desired_Position) Sail_Feedback-=increment; 
-	else Sail_Feedback+=increment; 
+	else {if(Sail_Feedback < Sail_Desired_Position)	{ Sail_Feedback+=increment; }}
 
 
 	// update rudder position (for the GUI only)
