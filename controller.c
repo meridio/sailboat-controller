@@ -63,7 +63,7 @@ float Point_Start_Lat=0, Point_Start_Lon=0, Point_End_Lat=0, Point_End_Lon=0;
 int   Rudder_Desired_Angle=0,   Manual_Control_Rudder=0, Rudder_Feedback=0;
 int   Sail_Desired_Position=0,  Manual_Control_Sail=0,   Sail_Feedback=0;
 int   Navigation_System=0, Prev_Navigation_System=0, Manual_Control=0, Simulation=0;
-int   logEntry=0, fa_debug=0, debug=0, debug2=0;
+int   logEntry=0, fa_debug=0, debug=0, debug2=0, debug3=1;
 char  logfile1[50],logfile2[50],logfile3[50];
 
 void initfiles();
@@ -83,6 +83,8 @@ struct timespec timermain;
 
 //guidance
 float _Complex X, X_T, X_T_b, X_b, X0;
+float _Complex X1, X2, X3, X4;		// Tacking boundary end points
+float _Complex Geo_X1, Geo_X2, Geo_X3, Geo_X4;
 float integratorSum=0, Guidance_Heading=0, override_Guidance_Heading=-1;
 float theta=0, theta_b=0, theta_d=0, theta_d_b=0, theta_d1=0, theta_d1_b=0, a_x=0, b_x=0;
 float theta_pM=0, theta_pM_b=0, theta_d_out=0;
@@ -347,7 +349,7 @@ void guidance()
 	float x, y, theta_wind;
 	float _Complex Geo_X, Geo_X0, Geo_X_T;
 
-	if (debug) printf("theta_d: %4.1f deg. \n",theta_d*180/PI);
+	//if (debug) printf("theta_d: %4.1f [deg]\n",theta_d*180/PI);
 
 	x=Longitude;
 	y=Latitude;
@@ -413,6 +415,32 @@ void guidance()
 	theta_d1 = theta_d1_b-theta_wind;
 	theta_pM = theta_pM_b-theta_wind;
 
+	// Finding Geo_Xn. 3 Steps. Correcting for wind, CONVLON/LAT, geographic location
+	X1 = ccos(atan2(cimag(X1),creal(X1))-theta_wind)*cabs(X1) + 1*I*(csin(atan2(cimag(X1),creal(X1))-theta_wind)*cabs(X1));
+	X1 = creal(X1)/CONVLON + I*cimag(X1)/CONVLAT;
+	Geo_X1 = X1 + Geo_X0;
+	
+	X2 = ccos(atan2(cimag(X2),creal(X2))-theta_wind)*cabs(X2) + 1*I*(csin(atan2(cimag(X2),creal(X2))-theta_wind)*cabs(X2));
+	X2 = creal(X2)/CONVLON + I*cimag(X2)/CONVLAT;
+	Geo_X2 = X2 + Geo_X0;
+
+	X3 = ccos(atan2(cimag(X3),creal(X3))-theta_wind)*cabs(X3) + 1*I*(csin(atan2(cimag(X3),creal(X3))-theta_wind)*cabs(X3));
+	X3 = creal(X3)/CONVLON + I*cimag(X3)/CONVLAT;
+	Geo_X3 = X3 + Geo_X0;
+
+	X4 = ccos(atan2(cimag(X4),creal(X4))-theta_wind)*cabs(X4) + 1*I*(csin(atan2(cimag(X4),creal(X4))-theta_wind)*cabs(X4));
+	X4 = creal(X4)/CONVLON + I*cimag(X4)/CONVLAT;
+	Geo_X4 = X4 + Geo_X0;
+
+	if (debug3) printf("\nTacking boundary end points:\n");
+	if (debug3) printf("GeoX0: %f + I*%f \n",creal(Geo_X0),cimag(Geo_X0));
+	if (debug3) printf("GeoXT: %f + I*%f \n",creal(Geo_X_T),cimag(Geo_X_T));
+	if (debug3) printf("GeoX1: %f + I*%f \n",creal(Geo_X1),cimag(Geo_X1));
+	if (debug3) printf("GeoX2: %f + I*%f \n",creal(Geo_X2),cimag(Geo_X2));
+	if (debug3) printf("GeoX3: %f + I*%f \n",creal(Geo_X3),cimag(Geo_X3));
+	if (debug3) printf("GeoX4: %f + I*%f \n",creal(Geo_X4),cimag(Geo_X4));
+
+
 	if ( sig3>0 ) { theta_d_out = theta_pM; }
 	else { theta_d_out = theta_d1; }
 	Guidance_Heading = (PI/2 - theta_d_out) * 180/PI; 
@@ -462,12 +490,34 @@ void findAngle()
 	// }
 	//******************************************************************
 
+
 	//if (debug) printf("theta_LOS: %f \n",theta_LOS);
 	//if (debug) printf("angle(Xdr): %f \n",atan2(cimag(Xdr),creal(Xdr)));
 	//if (debug) printf("angle(Xdl): %f \n",atan2(cimag(Xdl),creal(Xdl)));
 
-	if (debug) printf("a_x: %f \n",a_x);
+	//if (debug) printf("a_x: %f \n",a_x);
 	b_x = TACKINGRANGE / (2 * sin(theta_LOS));
+	//if (debug3) printf("\nTacking boundary end points:\n");
+	//if (debug3) printf("X_b: %f + I*%f \n",creal(X_b),cimag(X_b));
+	//if (debug3) printf("X_T_b: %f + I*%f \n",creal(X_T_b),cimag(X_T_b));
+
+	// Calculating tacking boundary points. X1 and X2 for left line, X3 and X4 right line.
+	// y1 = ( creal(X_T)*(b_x+creal(X_b))+cimag(X_T)*cimag(X_b) )/( creal(X_T)*a_x+cimag(X_T) );
+	X1 = 0 + I*( creal(X_T)*(b_x+creal(X_b)) +cimag(X_T)*cimag(X_b) )/( creal(X_T)*a_x+cimag(X_T) );
+	X1 = a_x*cimag(X1)-b_x + I*cimag(X1);
+	//if (debug3) printf("X1: %f + I*%f \n",creal(X1),cimag(X1));
+
+	X2 = 0 + I*( creal(X_T)*(b_x+creal(X_T)) +cimag(X_T)*cimag(X_T) )/( creal(X_T)*a_x+cimag(X_T) );
+	X2 = a_x*cimag(X2)-b_x + I*cimag(X2);
+	//if (debug3) printf("X2: %f + I*%f \n",creal(X2),cimag(X2));
+
+	X3 = 0 + I*( creal(X_T)*(-b_x+creal(X_T)) +cimag(X_T)*cimag(X_T) )/( creal(X_T)*a_x+cimag(X_T) );
+	X3 = a_x*cimag(X3)+b_x + I*cimag(X3);
+	//if (debug3) printf("X3: %f + I*%f \n",creal(X3),cimag(X3));
+
+	X4 = 0 + I*( creal(X_T)*(-b_x+creal(X_b))+cimag(X_T)*cimag(X_b) )/( creal(X_T)*a_x+cimag(X_T) );
+	X4 = a_x*cimag(X1)+b_x + I*cimag(X4);
+	//if (debug3) printf("X4: %f + I*%f \n",creal(X4),cimag(X4));
 
 
 	// compute the next theta_d, ie at time t+1
