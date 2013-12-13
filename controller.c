@@ -14,7 +14,7 @@
 #define MAINSLEEP_SEC	0		// seconds
 #define MAINSLEEP_MSEC	250		// milliseconds
 #define MAXLOGLINES	30000
-#define SEC		4		// number of loops per second
+#define SEC		4.0		// number of loops per second
 
 #define PI 		3.14159265
 
@@ -100,7 +100,7 @@ void jibe_pass_fcn();
 
 
 // sail algorithm
-float act_history=0;		// debet credit!...?
+float act_history=MAX_DUTY_CYCLE;		// debet credit!...?
 	// hill climbing
 int sail_hc_periods=0, sail_hc_direction=1, sail_hc_val=0;
 float sail_hc_ACC_V=0, sail_hc_OLD_V=0, sail_hc_MEAN_V=0;
@@ -909,11 +909,7 @@ void sail_controller() {
 	
 	// Duty cycle observer
 
-	if ( abs(Sail_Feedback-Sail_Desired_Position)>SIM_ACT_INC ) 
-	{ 
-		act_history = act_history+1/SEC; 
-		if (debug4) printf("act_history: %f \n",act_history);
-	}
+	if ( abs(Sail_Feedback-Sail_Desired_Position)>SIM_ACT_INC ) { act_history += 1/SEC;}
 	if ( act_history>0 ) { act_history = act_history-MAX_DUTY_CYCLE/SEC; }
 	if (debug4) printf("act_history: %.5f \n",act_history);
 	if (debug4) printf("abs: %d \n",abs(Sail_Feedback-Sail_Desired_Position));
