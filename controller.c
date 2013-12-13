@@ -18,7 +18,7 @@
 
 #define PI 		3.14159265
 
-#define TACKINGRANGE 	200		// meters
+#define TACKINGRANGE 	100		// meters
 #define RADIUSACCEPTED	5		// meters
 #define CONVLON		64078		// meters per degree
 #define CONVLAT		110742		// meters per degree
@@ -26,7 +26,7 @@
 #define JIBE_ANGLE	40		// [degrees] Rudder angle while jibing
 #define theta_nogo	55*PI/180	// [radians] Angle of nogo zone, compared to wind direction
 #define theta_down	30*PI/180 	// [radians] Angle of downwind zone, compared to wind direction.
-#define v_min		0		// [meters/seconds] Min velocity for tacking
+#define v_min		1000		// [meters/seconds] Min velocity for tacking
 #define angle_lim 	5*PI/180	// [degrees] threshold for jibing. The heading has to be 10 degrees close to desired Heading.
 #define ROLL_LIMIT 	5		// [degrees] Threshold for an automatic emergency sail release
 
